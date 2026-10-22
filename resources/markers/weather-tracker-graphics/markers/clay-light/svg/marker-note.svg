@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+<linearGradient id="g" gradientUnits="userSpaceOnUse" x1="20" y1="10" x2="108" y2="118"><stop offset="0" stop-color="#C27400"/><stop offset="0.5" stop-color="#AF6800"/><stop offset="1" stop-color="#885100"/></linearGradient>
+<filter id="clay" filterUnits="userSpaceOnUse" x="-10" y="-10" width="148" height="148" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur"/><feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="dblur"/><feOffset in="dblur" dy="3" result="dropOff"/><feFlood flood-color="#2B3A7A" flood-opacity="0.3"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-4" dy="-4" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#613A00" flood-opacity="0.55"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="4" dy="4" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#FFFFFF" flood-opacity="0.3"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.5"/></filter>
+</defs>
+<g transform="translate(64,62) scale(0.95) translate(-64,-64)">
+<g filter="url(#clay)"><g fill="url(#g)"><path d="M30,10 H78 L106,38 V110 Q106,118 98,118 H30 Q22,118 22,110 V18 Q22,10 30,10 Z"/></g></g>
+<g fill="#E7C799"><path d="M78,10 V32 Q78,38 84,38 H106 Z"/></g>
+<g fill="#FFFFFF" opacity="0.95"><rect x="36" y="52" width="56" height="11" rx="5.5"/><rect x="36" y="72" width="56" height="11" rx="5.5"/><rect x="36" y="92" width="34" height="11" rx="5.5"/></g>
+</g>
+</svg>

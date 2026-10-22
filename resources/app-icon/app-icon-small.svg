@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4DB0FF"/>
+      <stop offset="1" stop-color="#6F7CF2"/>
+    </linearGradient>
+    <radialGradient id="sunGrad" cx="0.38" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#FFF1A6"/>
+      <stop offset="0.45" stop-color="#FFD43B"/>
+      <stop offset="1" stop-color="#FFB000"/>
+    </radialGradient>
+    <linearGradient id="rayGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFE680"/>
+      <stop offset="1" stop-color="#FFB800"/>
+    </linearGradient>
+    <linearGradient id="cloudGrad" gradientUnits="userSpaceOnUse" x1="140" y1="200" x2="420" y2="405">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#EEF1FA"/>
+      <stop offset="1" stop-color="#CDD5EA"/>
+    </linearGradient>
+
+    <!-- Clay filters: soft drop shadow + dark inner shadow (bottom-right) + light inner highlight (top-left) -->
+    <filter id="clay-bg" x="-10%" y="-10%" width="120%" height="125%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14" result="blur"/>
+      <feOffset in="blur" dy="14" result="dropOff"/>
+      <feFlood flood-color="#1E2A78" flood-opacity="0.35"/>
+      <feComposite in2="dropOff" operator="in" result="drop"/>
+      <feOffset in="blur" dx="-16" dy="-16" result="dOff"/>
+      <feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+      <feFlood flood-color="#3341B8" flood-opacity="0.6"/>
+      <feComposite in2="dMask" operator="in" result="dark"/>
+      <feOffset in="blur" dx="16" dy="16" result="lOff"/>
+      <feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+      <feFlood flood-color="#FFFFFF" flood-opacity="0.55"/>
+      <feComposite in2="lMask" operator="in" result="light"/>
+      <feMerge>
+        <feMergeNode in="drop"/>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="dark"/>
+        <feMergeNode in="light"/>
+      </feMerge>
+    </filter>
+
+    <filter id="clay-ray" x="-20%" y="-50%" width="140%" height="220%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur"/>
+      <feOffset in="blur" dy="6" result="dropOff"/>
+      <feFlood flood-color="#26359A" flood-opacity="0.3"/>
+      <feComposite in2="dropOff" operator="in" result="drop"/>
+      <feOffset in="blur" dx="-5" dy="-5" result="dOff"/>
+      <feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+      <feFlood flood-color="#E88600" flood-opacity="0.6"/>
+      <feComposite in2="dMask" operator="in" result="dark"/>
+      <feOffset in="blur" dx="5" dy="5" result="lOff"/>
+      <feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+      <feFlood flood-color="#FFFFFF" flood-opacity="0.75"/>
+      <feComposite in2="lMask" operator="in" result="light"/>
+      <feMerge>
+        <feMergeNode in="drop"/>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="dark"/>
+        <feMergeNode in="light"/>
+      </feMerge>
+    </filter>
+
+    <filter id="clay-sun" x="-30%" y="-30%" width="160%" height="170%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10" result="blur"/>
+      <feOffset in="blur" dy="10" result="dropOff"/>
+      <feFlood flood-color="#26359A" flood-opacity="0.3"/>
+      <feComposite in2="dropOff" operator="in" result="drop"/>
+      <feOffset in="blur" dx="-12" dy="-12" result="dOff"/>
+      <feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+      <feFlood flood-color="#F08000" flood-opacity="0.6"/>
+      <feComposite in2="dMask" operator="in" result="dark"/>
+      <feOffset in="blur" dx="12" dy="12" result="lOff"/>
+      <feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+      <feFlood flood-color="#FFFBE0" flood-opacity="0.85"/>
+      <feComposite in2="lMask" operator="in" result="light"/>
+      <feMerge>
+        <feMergeNode in="drop"/>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="dark"/>
+        <feMergeNode in="light"/>
+      </feMerge>
+    </filter>
+
+    <filter id="clay-cloud" x="-20%" y="-30%" width="140%" height="170%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="12" result="blur"/>
+      <feOffset in="blur" dy="12" result="dropOff"/>
+      <feFlood flood-color="#1E2A78" flood-opacity="0.35"/>
+      <feComposite in2="dropOff" operator="in" result="drop"/>
+      <feOffset in="blur" dx="-14" dy="-14" result="dOff"/>
+      <feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+      <feFlood flood-color="#9AA5CF" flood-opacity="0.75"/>
+      <feComposite in2="dMask" operator="in" result="dark"/>
+      <feOffset in="blur" dx="14" dy="14" result="lOff"/>
+      <feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+      <feFlood flood-color="#FFFFFF" flood-opacity="1"/>
+      <feComposite in2="lMask" operator="in" result="light"/>
+      <feMerge>
+        <feMergeNode in="drop"/>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="dark"/>
+        <feMergeNode in="light"/>
+      </feMerge>
+    </filter>
+
+    <filter id="soften" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+  
+    <filter id="clay-bg-s" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="16" result="blur"/>
+      <feOffset in="blur" dx="-20" dy="-20" result="dOff"/>
+      <feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+      <feFlood flood-color="#3341B8" flood-opacity="0.6"/>
+      <feComposite in2="dMask" operator="in" result="dark"/>
+      <feOffset in="blur" dx="20" dy="20" result="lOff"/>
+      <feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+      <feFlood flood-color="#FFFFFF" flood-opacity="0.55"/>
+      <feComposite in2="lMask" operator="in" result="light"/>
+      <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="12" y="12" width="488" height="488" rx="110" fill="url(#bgGrad)" filter="url(#clay-bg-s)"/>
+  <g transform="translate(-37.25,-16.55) scale(1.15)">
+  <!-- Sun rays -->
+  <g fill="url(#rayGrad)" filter="url(#clay-ray)">
+    <rect x="208" y="69" width="42" height="52" rx="21"/>
+    <rect x="117.5" y="106.5" width="42" height="52" rx="21" transform="rotate(-45 138.5 132.5)"/>
+    <rect x="298.5" y="106.5" width="42" height="52" rx="21" transform="rotate(45 319.5 132.5)"/>
+    <rect x="75" y="202" width="52" height="42" rx="21"/>
+  </g>
+
+  <!-- Sun -->
+  <circle cx="229" cy="223" r="82" fill="url(#sunGrad)" filter="url(#clay-sun)"/>
+  <ellipse cx="196" cy="183" rx="24" ry="12" transform="rotate(-35 196 183)" fill="#FFFFFF" opacity="0.6" filter="url(#soften)"/>
+
+  <!-- Cloud -->
+  <g fill="url(#cloudGrad)" filter="url(#clay-cloud)">
+    <circle cx="201" cy="327" r="78"/>
+    <circle cx="311" cy="283" r="88"/>
+    <circle cx="383" cy="343" r="52"/>
+    <rect x="170" y="313" width="265" height="92" rx="46"/>
+  </g>
+  <ellipse cx="282" cy="232" rx="30" ry="12" transform="rotate(-25 282 232)" fill="#FFFFFF" opacity="0.9" filter="url(#soften)"/>
+  <ellipse cx="174" cy="284" rx="22" ry="10" transform="rotate(-35 174 284)" fill="#FFFFFF" opacity="0.9" filter="url(#soften)"/>
+
+  </g>
+</svg>

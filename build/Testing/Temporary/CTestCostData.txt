@@ -1,0 +1,17 @@
+periodmath 14 0.00254486
+repository 14 0.0025965
+format 14 0.00176418
+weatherinput 14 0.00181442
+units 14 0.00177151
+stats 14 0.00184256
+textsize 13 0.00189217
+statsrows 12 0.00198996
+history 9 0.00298088
+chartmath 7 0.00368607
+theme 4 0.00624267
+records 3 0.0089967
+dateparse 2 0.0116401
+backups 2 0.0781502
+updatecheck 0 0
+---
+updatecheck

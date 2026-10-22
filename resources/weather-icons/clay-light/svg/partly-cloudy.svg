@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+<linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="-39.5" y1="-39.5" x2="39.5" y2="39.5"><stop offset="0" stop-color="#FFE680"/><stop offset="0.55" stop-color="#FFD033"/><stop offset="1" stop-color="#FFB800"/></linearGradient>
+<filter id="f1" filterUnits="userSpaceOnUse" x="-10" y="-10" width="148" height="148" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="1.6" result="blur"/>
+<feOffset in="blur" dy="2" result="dropOff"/><feFlood flood-color="#2B3A7A" flood-opacity="0.35"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-2" dy="-2" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#E88600" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="2" dy="2" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#FFFFFF" flood-opacity="0.85"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<radialGradient id="g2" gradientUnits="userSpaceOnUse" cx="-5.04" cy="-7.56" r="31.50"><stop offset="0" stop-color="#FFF1A6"/><stop offset="0.55" stop-color="#FFD43B"/><stop offset="1" stop-color="#FFB000"/></radialGradient>
+<filter id="f2" filterUnits="userSpaceOnUse" x="-10" y="-10" width="148" height="148" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="2.6" result="blur"/>
+<feOffset in="blur" dy="3" result="dropOff"/><feFlood flood-color="#2B3A7A" flood-opacity="0.35"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-3" dy="-3" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#E07800" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="3" dy="3" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#FFFFFF" flood-opacity="0.85"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<linearGradient id="g3" gradientUnits="userSpaceOnUse" x1="4" y1="2" x2="76" y2="54"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.55" stop-color="#E9EDF8"/><stop offset="1" stop-color="#B9C4E0"/></linearGradient>
+<filter id="f3" filterUnits="userSpaceOnUse" x="-10" y="-10" width="148" height="148" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="3.5" result="blur"/>
+<feOffset in="blur" dy="4" result="dropOff"/><feFlood flood-color="#2B3A7A" flood-opacity="0.35"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-4" dy="-4" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#7F8DBE" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="4" dy="4" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#FFFFFF" flood-opacity="0.85"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.2"/></filter>
+</defs>
+<g filter="url(#f1)"><g transform="translate(50,46)"><g fill="url(#g1)" stroke="none" stroke-width="0.00" stroke-linejoin="round" stroke-linecap="round"><rect x="-4.0" y="-39.5" width="8" height="11" rx="4.0" transform="rotate(0)"/><rect x="-4.0" y="-39.5" width="8" height="11" rx="4.0" transform="rotate(45)"/><rect x="-4.0" y="-39.5" width="8" height="11" rx="4.0" transform="rotate(90)"/><rect x="-4.0" y="-39.5" width="8" height="11" rx="4.0" transform="rotate(135)"/><rect x="-4.0" y="-39.5" width="8" height="11" rx="4.0" transform="rotate(180)"/><rect x="-4.0" y="-39.5" width="8" height="11" rx="4.0" transform="rotate(225)"/><rect x="-4.0" y="-39.5" width="8" height="11" rx="4.0" transform="rotate(270)"/><rect x="-4.0" y="-39.5" width="8" height="11" rx="4.0" transform="rotate(315)"/></g></g></g>
+<g filter="url(#f2)"><g transform="translate(50,46)"><g fill="url(#g2)" stroke="none" stroke-width="0.00" stroke-linejoin="round" stroke-linecap="round"><circle cx="0" cy="0" r="21"/></g></g></g>
+<g transform="translate(50,46)"><g fill="#FFFFFF" opacity="0.8" filter="url(#soft)"><ellipse cx="-7.98" cy="-9.45" rx="6.30" ry="3.15" transform="rotate(-35 -7.98 -9.45)"/></g></g>
+<g filter="url(#f3)"><g transform="translate(30.00,50.60) scale(1.05)"><g fill="url(#g3)" stroke="none" stroke-width="0.00" stroke-linejoin="round" stroke-linecap="round"><circle cx="22" cy="34" r="18"/><circle cx="44" cy="24" r="22"/><circle cx="62" cy="36" r="14"/><rect x="10" y="30" width="64" height="24" rx="12"/></g></g></g>
+<g transform="translate(30.00,50.60) scale(1.05)"><g fill="#FFFFFF" opacity="0.8" filter="url(#soft)"><ellipse cx="36.00" cy="12.00" rx="9.00" ry="4.00" transform="rotate(-25 36.00 12.00)"/><ellipse cx="15.00" cy="27.00" rx="6.00" ry="3.00" transform="rotate(-35 15.00 27.00)"/></g></g>
+</svg>

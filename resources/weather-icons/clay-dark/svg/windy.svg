@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<defs>
+<filter id="f1" filterUnits="userSpaceOnUse" x="-10" y="-10" width="148" height="148" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="2.6" result="blur"/>
+<feOffset in="blur" dy="3" result="dropOff"/><feFlood flood-color="#000000" flood-opacity="0.55"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-3" dy="-3" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#6F8CC4" flood-opacity="0.65"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="3" dy="3" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#FFFFFF" flood-opacity="0.55"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.2"/></filter>
+</defs>
+<g filter="url(#f1)"><g transform="translate(8,4)"><g fill="none" stroke="#C9D7F2" stroke-width="9.00" stroke-linejoin="round" stroke-linecap="round"><path d="M16 48 H74 A13 13 0 1 0 61 35"/><path d="M12 68 H88 A12 12 0 1 1 76 80"/><path d="M24 88 H58"/></g></g></g>
+</svg>

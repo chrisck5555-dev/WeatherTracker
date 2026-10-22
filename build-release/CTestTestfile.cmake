@@ -1,0 +1,36 @@
+# CMake generated Testfile for 
+# Source directory: C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker
+# Build directory: C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release
+# 
+# This file includes the relevant testing commands required for 
+# testing this directory and lists subdirectories to be tested as well.
+add_test([=[periodmath]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_periodmath.exe")
+set_tests_properties([=[periodmath]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;129;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[repository]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_repository.exe")
+set_tests_properties([=[repository]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;133;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[format]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_format.exe")
+set_tests_properties([=[format]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;137;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[weatherinput]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_weatherinput.exe")
+set_tests_properties([=[weatherinput]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;141;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[units]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_units.exe")
+set_tests_properties([=[units]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;145;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[stats]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_stats.exe")
+set_tests_properties([=[stats]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;149;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[textsize]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_textsize.exe")
+set_tests_properties([=[textsize]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;153;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[statsrows]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_statsrows.exe")
+set_tests_properties([=[statsrows]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;157;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[history]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_history.exe")
+set_tests_properties([=[history]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;161;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[chartmath]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_chartmath.exe")
+set_tests_properties([=[chartmath]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;165;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[theme]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_theme.exe")
+set_tests_properties([=[theme]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;169;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[records]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_records.exe")
+set_tests_properties([=[records]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;173;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[dateparse]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_dateparse.exe")
+set_tests_properties([=[dateparse]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;177;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[backups]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_backups.exe")
+set_tests_properties([=[backups]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;181;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")
+add_test([=[updatecheck]=] "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/build-release/tst_updatecheck.exe")
+set_tests_properties([=[updatecheck]=] PROPERTIES  _BACKTRACE_TRIPLES "C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;185;add_test;C:/Users/Chris/projects/helloworld/Personal/2026/WeatherTracker/CMakeLists.txt;0;")

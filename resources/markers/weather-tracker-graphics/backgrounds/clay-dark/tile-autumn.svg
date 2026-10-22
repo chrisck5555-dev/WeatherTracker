@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240">
+<defs>
+<filter id="fCloud" filterUnits="userSpaceOnUse" x="-60" y="-60" width="480" height="360" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur"/><feGaussianBlur in="SourceAlpha" stdDeviation="6" result="dblur"/><feOffset in="dblur" dy="7" result="dropOff"/><feFlood flood-color="#000000" flood-opacity="0.35"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-7" dy="-7" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#1A1E30" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="7" dy="7" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#56608A" flood-opacity="0.22"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="fRcloud" filterUnits="userSpaceOnUse" x="-60" y="-60" width="480" height="360" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur"/><feGaussianBlur in="SourceAlpha" stdDeviation="6" result="dblur"/><feOffset in="dblur" dy="7" result="dropOff"/><feFlood flood-color="#000000" flood-opacity="0.35"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-7" dy="-7" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#181C2C" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="7" dy="7" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#56608A" flood-opacity="0.22"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="fSmall" filterUnits="userSpaceOnUse" x="-60" y="-60" width="480" height="360" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="blur"/><feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="dblur"/><feOffset in="dblur" dy="3" result="dropOff"/><feFlood flood-color="#000000" flood-opacity="0.35"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-3" dy="-3" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#1C2440" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="3" dy="3" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#56608A" flood-opacity="0.22"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="fFlake" filterUnits="userSpaceOnUse" x="-60" y="-60" width="480" height="360" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="1.8" result="blur"/><feGaussianBlur in="SourceAlpha" stdDeviation="1.8" result="dblur"/><feOffset in="dblur" dy="2.2" result="dropOff"/><feFlood flood-color="#000000" flood-opacity="0.35"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-2.2" dy="-2.2" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#252B42" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="2.2" dy="2.2" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#56608A" flood-opacity="0.22"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="fHill" filterUnits="userSpaceOnUse" x="-60" y="-60" width="480" height="360" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="10" result="blur"/>
+<feOffset in="blur" dx="-10" dy="-10" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#10171E" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="10" dy="10" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#56608A" flood-opacity="0.22"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="fSnow" filterUnits="userSpaceOnUse" x="-60" y="-60" width="480" height="360" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="9" result="blur"/>
+<feOffset in="blur" dx="-9" dy="-9" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#1E2336" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="9" dy="9" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#56608A" flood-opacity="0.22"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="fMoon" filterUnits="userSpaceOnUse" x="-60" y="-60" width="480" height="360" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur"/><feGaussianBlur in="SourceAlpha" stdDeviation="6" result="dblur"/><feOffset in="dblur" dy="7" result="dropOff"/><feFlood flood-color="#000000" flood-opacity="0.35"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-7" dy="-7" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#2A271F" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="7" dy="7" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#56608A" flood-opacity="0.22"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+<filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+<filter id="glow" x="-300%" y="-300%" width="700%" height="700%"><feGaussianBlur stdDeviation="1.2"/></filter>
+<linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="240"><stop offset="0.00" stop-color="#2B2C41"/><stop offset="1.00" stop-color="#33344B"/></linearGradient>
+<linearGradient id="al0" gradientUnits="userSpaceOnUse" x1="-8" y1="-15" x2="8" y2="15"><stop offset="0.00" stop-color="#8A6544"/><stop offset="1.00" stop-color="#755236"/></linearGradient>
+<linearGradient id="al1" gradientUnits="userSpaceOnUse" x1="-8" y1="-15" x2="8" y2="15"><stop offset="0.00" stop-color="#8C7744"/><stop offset="1.00" stop-color="#766236"/></linearGradient>
+<linearGradient id="al2" gradientUnits="userSpaceOnUse" x1="-8" y1="-15" x2="8" y2="15"><stop offset="0.00" stop-color="#865548"/><stop offset="1.00" stop-color="#6E4439"/></linearGradient>
+<filter id="fAleaf" filterUnits="userSpaceOnUse" x="-60" y="-60" width="480" height="360" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="blur"/><feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="dblur"/><feOffset in="dblur" dy="2.6" result="dropOff"/><feFlood flood-color="#000000" flood-opacity="0.35"/><feComposite in2="dropOff" operator="in" result="drop"/>
+<feOffset in="blur" dx="-2.6" dy="-2.6" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#3A2618" flood-opacity="0.6"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feOffset in="blur" dx="2.6" dy="2.6" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#56608A" flood-opacity="0.22"/><feComposite in2="lMask" operator="in" result="light"/>
+<feMerge><feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+</defs>
+<rect x="0" y="0" width="360" height="240" fill="url(#bg)"/>
+<g transform="translate(28,30) rotate(163) scale(1.2)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(70,18) rotate(308) scale(0.9)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al1)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(20,72) rotate(163) scale(0.95)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(56,52) rotate(68) scale(0.7)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(330,28) rotate(171) scale(1.2)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(290,16) rotate(285) scale(0.8)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al0)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(342,70) rotate(161) scale(0.9)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al0)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(304,40) rotate(33) scale(0.7)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(22,176) rotate(228) scale(0.85)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(344,174) rotate(354) scale(0.85)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al1)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(30,214) rotate(235) scale(1.2)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(70,226) rotate(234) scale(1.0)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(14,232) rotate(5) scale(0.9)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(330,214) rotate(23) scale(1.2)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al0)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(292,228) rotate(68) scale(1.0)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al0)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(350,236) rotate(216) scale(0.9)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al1)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(130,230) rotate(117) scale(0.75)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(230,232) rotate(303) scale(0.8)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(180,14) rotate(84) scale(0.6)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al1)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(110,16) rotate(180) scale(0.65)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g><g transform="translate(250,12) rotate(31) scale(0.6)"><g filter="url(#fAleaf)"><path d="M0,-15 C9,-8 9,8 0,15 C-9,8 -9,-8 0,-15 Z" fill="url(#al2)"/></g><path d="M0,-11 V18" stroke="#5C3F2A" stroke-width="1.6" stroke-linecap="round"/></g>
+</svg>
