@@ -8,6 +8,7 @@
 #include <QSqlQuery>
 #include <QStandardPaths>
 #include <QVariant>
+#include <cmath>
 #include <utility>
 
 namespace {
@@ -53,6 +54,13 @@ Repository::Repository(const QString &path)
     createSchema();
 }
 
+// Settings that apply to every connection to our own file.
+void Repository::applyPragmas()
+{
+    QSqlQuery q(QSqlDatabase::database(m_conn, false));
+    q.exec("PRAGMA trusted_schema = OFF");              // never run code stored in the file
+}
+
 Repository::~Repository()
 {
     {   // scope: the handle must be gone before removeDatabase
@@ -72,6 +80,7 @@ QString Repository::defaultDataPath()
 
 void Repository::createSchema()
 {
+    applyPragmas();                                     // runs on every (re)open
     const char *statements[] = {
         "CREATE TABLE IF NOT EXISTS weather ("
         " date TEXT PRIMARY KEY, high_c REAL, low_c REAL, wind_kmh REAL, wind_dir TEXT,"
@@ -375,58 +384,286 @@ bool Repository::backupTo(const QString &file) const
     return false;
 }
 
-std::optional<Repository::Counts> Repository::inspect(const QString &file)
+// ---------------- Checking files from outside ----------------
+//
+// A backup or a copy on a USB stick could be damaged, or could have been edited by some
+// other program. Nothing from such a file is used until it has passed these checks.
+
+namespace {
+
+// What the program itself can store. Anything outside this means the file was damaged or
+// edited elsewhere. The limits mirror the editor's own (wind, gust and precipitation are
+// never negative; humidity is 0-100), plus size caps no real value comes near.
+constexpr double kMaxMagnitude = 1e6;
+constexpr int kMaxShortText = 100;            // dropdown choices and event keys
+constexpr int kMaxNoteChars = 1000000;
+constexpr int kMaxSettingChars = 100000;
+
+const QString kNotOurs = QStringLiteral("That file is not Weather Tracker data.");
+
+bool hasSqliteHeader(const QString &file)
 {
-    if (!QFileInfo::exists(file))
-        return std::nullopt;
+    QFile f(file);
+    if (!f.open(QIODevice::ReadOnly))
+        return false;
+    return f.read(16) == QByteArray("SQLite format 3", 16);   // 15 letters + the ending 0
+}
+
+bool isNumberOrNull(const QVariant &v, double lo, double hi)
+{
+    if (v.isNull())
+        return true;
+    const int type = v.typeId();
+    if (type != QMetaType::Double && type != QMetaType::LongLong && type != QMetaType::Int)
+        return false;                                     // text or binary where a number belongs
+    const double d = v.toDouble();
+    return std::isfinite(d) && d >= lo && d <= hi;
+}
+
+bool isTextOrNull(const QVariant &v, int maxChars)
+{
+    if (v.isNull())
+        return true;
+    return v.typeId() == QMetaType::QString && v.toString().size() <= maxChars;
+}
+
+bool isText(const QVariant &v, int maxChars)
+{
+    return !v.isNull() && isTextOrNull(v, maxChars);
+}
+
+// A day exactly as the program writes it: "2026-10-05".
+bool isDay(const QVariant &v)
+{
+    if (v.isNull() || v.typeId() != QMetaType::QString)
+        return false;
+    const QString s = v.toString();
+    const QDate d = QDate::fromString(s, Qt::ISODate);
+    return d.isValid() && d.toString(Qt::ISODate) == s && d.year() >= 1800 && d.year() <= 2200;
+}
+
+QString dayWords(const QVariant &v)
+{
+    const QDate d = QDate::fromString(v.toString(), Qt::ISODate);
+    return d.isValid() ? d.toString("MMMM d, yyyy") : QStringLiteral("a day with an unreadable date");
+}
+
+QString badValue(const QString &where)
+{
+    return QString("That file has a value Weather Tracker could not have saved, in %1.").arg(where);
+}
+
+// Column name -> part of the primary key (0 = not part of it), as PRAGMA table_info reports.
+using Columns = QMap<QString, int>;
+
+Columns columnsOf(QSqlDatabase &db, const QString &table)
+{
+    Columns columns;
+    QSqlQuery q(db);
+    if (q.exec(QString("PRAGMA table_info(%1)").arg(table)))   // `table` is one of ours
+        while (q.next())
+            columns.insert(q.value(1).toString(), q.value(5).toInt());
+    return columns;
+}
+
+// Every column the program needs must be there, with the same primary key. Newer versions
+// may add columns, so extra ones are allowed.
+bool hasColumns(const Columns &have, const Columns &need)
+{
+    for (auto it = need.constBegin(); it != need.constEnd(); ++it)
+        if (!have.contains(it.key()) || have.value(it.key()) != it.value())
+            return false;
+    return true;
+}
+
+// Looks at every saved value. Returns the problem, or an empty string.
+QString checkValues(QSqlDatabase &db, const QSet<QString> &tables, const Columns &weatherColumns)
+{
+    {
+        const bool gust = weatherColumns.contains("gust_kmh") && weatherColumns.contains("gust_dir");
+        QSqlQuery q(db);
+        q.setForwardOnly(true);
+        if (!q.exec(QString("SELECT date, high_c, low_c, wind_kmh, wind_dir, precip_type, precip_mm,"
+                            " humidity, pressure_hpa, cloud%1 FROM weather")
+                        .arg(gust ? ", gust_kmh, gust_dir" : "")))
+            return kNotOurs;
+        while (q.next()) {
+            const QVariant date = q.value(0);
+            const bool ok = isDay(date)
+                && isNumberOrNull(q.value(1), -kMaxMagnitude, kMaxMagnitude)    // high
+                && isNumberOrNull(q.value(2), -kMaxMagnitude, kMaxMagnitude)    // low
+                && isNumberOrNull(q.value(3), 0, kMaxMagnitude)                 // wind
+                && isTextOrNull(q.value(4), kMaxShortText)                      // wind direction
+                && isTextOrNull(q.value(5), kMaxShortText)                      // precipitation type
+                && isNumberOrNull(q.value(6), 0, kMaxMagnitude)                 // precipitation
+                && isNumberOrNull(q.value(7), 0, 100)                           // humidity
+                && isNumberOrNull(q.value(8), -kMaxMagnitude, kMaxMagnitude)    // pressure
+                && isTextOrNull(q.value(9), kMaxShortText)                      // cloud cover
+                && (!gust || (isNumberOrNull(q.value(10), 0, kMaxMagnitude)     // gust
+                              && isTextOrNull(q.value(11), kMaxShortText)));    // gust direction
+            if (!ok)
+                return badValue("the weather for " + dayWords(date));
+        }
+    }
+    if (tables.contains("notes")) {
+        QSqlQuery q(db);
+        q.setForwardOnly(true);
+        if (!q.exec("SELECT date, text FROM notes"))
+            return kNotOurs;
+        while (q.next())
+            if (!isDay(q.value(0)) || !isText(q.value(1), kMaxNoteChars))
+                return badValue("the note for " + dayWords(q.value(0)));
+    }
+    if (tables.contains("events")) {
+        QSqlQuery q(db);
+        q.setForwardOnly(true);
+        if (!q.exec("SELECT date, key FROM events"))
+            return kNotOurs;
+        while (q.next())
+            if (!isDay(q.value(0)) || !isText(q.value(1), kMaxShortText))
+                return badValue("the events for " + dayWords(q.value(0)));
+    }
+    if (tables.contains("settings")) {
+        QSqlQuery q(db);
+        q.setForwardOnly(true);
+        if (!q.exec("SELECT key, value FROM settings"))
+            return kNotOurs;
+        while (q.next())
+            if (!isText(q.value(0), kMaxShortText) || !isText(q.value(1), kMaxSettingChars))
+                return badValue("the settings");
+    }
+    return QString();
+}
+
+} // namespace
+
+Repository::FileCheck Repository::checkFile(const QString &file, bool thorough)
+{
+    FileCheck result;
+    const QFileInfo info(file);
+    if (!info.exists() || !info.isFile() || !hasSqliteHeader(file)) {
+        result.problem = kNotOurs;
+        return result;
+    }
+    if (info.size() > kMaxFileBytes) {
+        result.problem = "That file is too large to be Weather Tracker data.";
+        return result;
+    }
+
     const QString name = nextConnectionName();
-    std::optional<Counts> result;
     {   // scope: the handle must be gone before removeDatabase
         QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", name);
         db.setDatabaseName(file);
         db.setConnectOptions("QSQLITE_OPEN_READONLY");   // never changes the file
-        if (db.open()) {
-            auto count = [&db](const char *sql) {
+        result.problem = [&]() -> QString {
+            if (!db.open())
+                return kNotOurs;
+            QSqlQuery pragma(db);
+            pragma.exec("PRAGMA trusted_schema = OFF");  // do not run anything the file defines
+
+            // What is inside: our tables, and nothing that runs code by itself.
+            QSet<QString> tables;
+            {
                 QSqlQuery q(db);
-                if (q.exec(QString::fromUtf8(sql)) && q.next())
-                    return q.value(0).toInt();
-                return -1;                              // for example: no such table
-            };
-            const int weather = count("SELECT COUNT(*) FROM weather");
-            if (weather >= 0) {                         // a weather table: it is ours
-                Counts c;
-                c.weatherDays = weather;
-                c.noteDays = qMax(0, count("SELECT COUNT(*) FROM notes"));
-                c.eventDays = qMax(0, count("SELECT COUNT(DISTINCT date) FROM events"));
-                result = c;
+                if (!q.exec("SELECT type, name FROM sqlite_master"))
+                    return "That file is damaged.";
+                while (q.next()) {
+                    const QString type = q.value(0).toString();
+                    if (type == "trigger" || type == "view")
+                        return "That file contains parts that Weather Tracker never makes.";
+                    if (type == "table")
+                        tables.insert(q.value(1).toString());
+                }
             }
-            db.close();
-        }
+            if (!tables.contains("weather"))
+                return kNotOurs;
+
+            const Columns weather = columnsOf(db, "weather");
+            const bool shapeOk =
+                hasColumns(weather, {{"date", 1}, {"high_c", 0}, {"low_c", 0}, {"wind_kmh", 0},
+                                     {"wind_dir", 0}, {"precip_type", 0}, {"precip_mm", 0},
+                                     {"humidity", 0}, {"pressure_hpa", 0}, {"cloud", 0}})
+                && (!tables.contains("notes")
+                    || hasColumns(columnsOf(db, "notes"), {{"date", 1}, {"text", 0}}))
+                && (!tables.contains("events")
+                    || hasColumns(columnsOf(db, "events"), {{"date", 1}, {"key", 2}}))
+                && (!tables.contains("settings")
+                    || hasColumns(columnsOf(db, "settings"), {{"key", 1}, {"value", 0}}));
+            if (!shapeOk)
+                return kNotOurs;
+
+            if (thorough) {
+                QSqlQuery q(db);
+                if (!q.exec("PRAGMA integrity_check") || !q.next() || q.value(0).toString() != "ok")
+                    return "That file is damaged.";
+                const QString valueProblem = checkValues(db, tables, weather);
+                if (!valueProblem.isEmpty())
+                    return valueProblem;
+            }
+
+            auto count = [&db](const QString &sql) {
+                QSqlQuery q(db);
+                return q.exec(sql) && q.next() ? q.value(0).toInt() : 0;
+            };
+            result.counts.weatherDays = count("SELECT COUNT(*) FROM weather");
+            if (tables.contains("notes"))
+                result.counts.noteDays = count("SELECT COUNT(*) FROM notes");
+            if (tables.contains("events"))
+                result.counts.eventDays = count("SELECT COUNT(DISTINCT date) FROM events");
+            return QString();
+        }();
+        db.close();
     }
     QSqlDatabase::removeDatabase(name);
+    result.ok = result.problem.isEmpty();
     return result;
+}
+
+std::optional<Repository::Counts> Repository::inspect(const QString &file)
+{
+    const FileCheck check = checkFile(file, false);
+    if (!check.ok)
+        return std::nullopt;
+    return check.counts;
 }
 
 bool Repository::replaceWith(const QString &file)
 {
-    if (!inspect(file)) {
-        m_error = "That file is not Weather Tracker data.";
-        return false;
-    }
     if (m_path == ":memory:" || m_path.isEmpty()) {
         m_error = "This database is not stored in a file.";
         return false;
     }
 
+    // Copy first, then check the copy: the file that is checked is the one that is used,
+    // even if the original (on a USB stick, say) changes in between.
+    const QString temp = m_path + ".restoring";
+    QFile::remove(temp);
+    if (!QFile::copy(file, temp)) {
+        m_error = "Could not read that file.";
+        return false;
+    }
+    const FileCheck check = checkFile(temp, true);
+    if (!check.ok) {
+        m_error = check.problem;
+        QFile::remove(temp);
+        return false;                                   // the current data was never touched
+    }
+
     QSqlDatabase db = QSqlDatabase::database(m_conn, false);
     db.close();                                         // Windows cannot replace an open file
 
-    const QString temp = m_path + ".restoring";
-    QFile::remove(temp);
-    bool ok = QFile::copy(file, temp);                  // copy first: the old data is still safe
-    if (ok)
-        ok = QFile::remove(m_path) && QFile::rename(temp, m_path);
-    if (!ok) {
+    // Move the old file aside instead of deleting it, so a failed swap can be undone.
+    const QString aside = m_path + ".replaced";
+    QFile::remove(aside);
+    bool ok = QFile::rename(m_path, aside);
+    if (ok) {
+        ok = QFile::rename(temp, m_path);
+        if (!ok)
+            QFile::rename(aside, m_path);               // put the old data back
+    }
+    if (ok) {
+        QFile::remove(aside);
+    } else {
         m_error = "Could not replace the data file.";
         QFile::remove(temp);
     }

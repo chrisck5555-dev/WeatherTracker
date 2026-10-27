@@ -9,6 +9,7 @@ bool destructive(QWidget *parent, const QString &title, const QString &message,
                  const QString &safeLabel, const QString &destructiveLabel)
 {
     QMessageBox box(QMessageBox::Question, title, message, QMessageBox::NoButton, parent);
+    box.setTextFormat(Qt::PlainText);        // messages can contain typed or downloaded text
     // Buttons appear in the order they are added on Windows, so safe is added first.
     QPushButton *safe = box.addButton(safeLabel, QMessageBox::RejectRole);
     QPushButton *danger = box.addButton(destructiveLabel, QMessageBox::AcceptRole);

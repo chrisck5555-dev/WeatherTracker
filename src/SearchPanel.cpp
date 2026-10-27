@@ -58,6 +58,7 @@ SearchPanel::SearchPanel(Repository &repo, QWidget *parent)
 
     m_status = new QLabel;
     m_status->setWordWrap(true);
+    m_status->setTextFormat(Qt::PlainText);       // it repeats what she typed: never read it as HTML
 
     m_list = new QListWidget;
     m_list->setWordWrap(true);

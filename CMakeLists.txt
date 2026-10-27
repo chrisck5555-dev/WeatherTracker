@@ -184,6 +184,10 @@ add_executable(tst_updatecheck tests/tst_updatecheck.cpp)
 target_link_libraries(tst_updatecheck PRIVATE WeatherCore Qt6::Test)
 add_test(NAME updatecheck COMMAND tst_updatecheck)
 
+add_executable(tst_filecheck tests/tst_filecheck.cpp)
+target_link_libraries(tst_filecheck PRIVATE WeatherCore Qt6::Test)
+add_test(NAME filecheck COMMAND tst_filecheck)
+
 # Tools
 add_executable(bench_cells tools/bench_cells.cpp)
 target_link_libraries(bench_cells PRIVATE Qt6::Widgets)

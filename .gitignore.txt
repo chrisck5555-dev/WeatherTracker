@@ -1,5 +1,0 @@
-build/
-build-release/
-dist/
-installer-output/
-*.user

@@ -67,8 +67,21 @@ public:
     static std::optional<Counts> inspect(const QString &file);
     bool replaceWith(const QString &file);
 
+    // Checks a data file from outside (a backup, or a copy from a USB stick) WITHOUT
+    // changing it. The quick check (for lists) looks at the file type, size and tables.
+    // The thorough check, used before any data is replaced, also runs SQLite's own damage
+    // check and looks at every saved value.
+    struct FileCheck {
+        bool ok = false;
+        QString problem;          // plain English for a message box; empty when ok
+        Counts counts;            // only meaningful when ok
+    };
+    static FileCheck checkFile(const QString &file, bool thorough);
+    static constexpr qint64 kMaxFileBytes = 50LL * 1024 * 1024;     // 50 MB
+
 private:
     void createSchema();
+    void applyPragmas();
     QSet<QDate> datesIn(const char *table, const QDate &from, const QDate &to) const;
 
     QString m_path;               // the database file (or ":memory:")

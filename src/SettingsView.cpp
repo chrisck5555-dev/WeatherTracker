@@ -126,9 +126,11 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     auto *dataNote = new QLabel(QString("Your weather data is stored in:\n%1")
                                     .arg(QDir::toNativeSeparators(m_repo.path())));
     dataNote->setWordWrap(true);
+    dataNote->setTextFormat(Qt::PlainText);           // folder names are shown as-is
     dataNote->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_backupInfo = new QLabel;
     m_backupInfo->setWordWrap(true);
+    m_backupInfo->setTextFormat(Qt::PlainText);
     m_backupInfo->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
     auto *backupNowButton = smallButton("Back up now");
@@ -280,15 +282,15 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
             "Weather Tracker data (*.db)");
         if (file.isEmpty())
             return;
-        const auto counts = Repository::inspect(file);
-        if (!counts) {
-            QMessageBox::warning(this, "Weather Tracker",
-                                 "That file is not Weather Tracker data, so nothing was changed.");
+        // The thorough check runs before asking, so she never confirms a file that would fail.
+        const Repository::FileCheck check = Repository::checkFile(file, true);
+        if (!check.ok) {
+            QMessageBox::warning(this, "Weather Tracker", check.problem + "\n\nNothing was changed.");
             return;
         }
         replaceData(file, QString("The file you chose has %1 days of weather and %2 notes. "
                                   "It will replace the data in this program.")
-                              .arg(counts->weatherDays).arg(counts->noteDays));
+                              .arg(check.counts.weatherDays).arg(check.counts.noteDays));
     });
     connect(guideButton, &QPushButton::clicked, this, &SettingsView::guideRequested);
     connect(tourButton, &QPushButton::clicked, this, &SettingsView::tourRequested);

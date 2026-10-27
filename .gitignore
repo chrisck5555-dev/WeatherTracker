@@ -1,0 +1,18 @@
+# Build output (made by CMake, windeployqt and Inno Setup; never commit these)
+build/
+build-*/
+dist/
+installer-output/
+
+# Weather data, logs and reports (personal, and never part of the source)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.log
+problem-report.txt
+
+# Editor and tool settings that belong to one computer
+.vscode/
+*.user
+CMakeUserPresets.json
