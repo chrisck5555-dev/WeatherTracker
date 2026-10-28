@@ -23,9 +23,14 @@ public:
 
     void check();              // answers later through finished()
 
+    // Off = never connects at all (Settings > Your privacy). On by default.
+    void setAllowed(bool allowed) { m_allowed = allowed; }
+    bool isAllowed() const { return m_allowed; }
+
 signals:
     void finished(const UpdateChecker::Result &result);
 
 private:
     QNetworkAccessManager m_net;
+    bool m_allowed = true;
 };

@@ -116,6 +116,8 @@ add_executable(WeatherTracker WIN32
     src/Artwork.h
     src/WeatherIcons.cpp
     src/WeatherIcons.h
+    src/Toast.cpp
+    src/Toast.h
     resources/app-icon/app.rc
     resources/resources.qrc
 )
@@ -187,6 +189,7 @@ add_test(NAME updatecheck COMMAND tst_updatecheck)
 add_executable(tst_filecheck tests/tst_filecheck.cpp)
 target_link_libraries(tst_filecheck PRIVATE WeatherCore Qt6::Test)
 add_test(NAME filecheck COMMAND tst_filecheck)
+
 
 # Tools
 add_executable(bench_cells tools/bench_cells.cpp)

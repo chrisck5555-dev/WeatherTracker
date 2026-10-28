@@ -38,4 +38,9 @@ struct Entry {
 };
 QList<Entry> list(const QString &folder = defaultFolder());      // newest first
 
+// Deletes every backup and safety copy the program made in `folder` (nothing else there).
+// Returns false if any of them could not be deleted.
+bool deleteAll(const QString &folder = defaultFolder());
+int countAll(const QString &folder = defaultFolder());          // how many deleteAll() would remove
+
 } // namespace Backups

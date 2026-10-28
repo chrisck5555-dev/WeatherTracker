@@ -89,6 +89,38 @@ QString safetyCopy(const Repository &repo, QString *error, const QString &folder
     return target;
 }
 
+namespace {
+// Only the program's own files: daily backups, safety copies, and their half-written temps.
+QStringList ownFiles(const QString &folder)
+{
+    const QDir dir(folder);
+    QStringList files;
+    for (const QString &pattern : {kDailyPattern, kSafetyPattern,
+                                   kDailyPattern + ".tmp", kSafetyPattern + ".tmp"})
+        for (const QString &name : dir.entryList({pattern}, QDir::Files))
+            files << dir.filePath(name);
+    files.removeDuplicates();
+    return files;
+}
+} // namespace
+
+bool deleteAll(const QString &folder)
+{
+    bool ok = true;
+    for (const QString &file : ownFiles(folder))
+        ok = QFile::remove(file) && ok;
+    return ok;
+}
+
+int countAll(const QString &folder)
+{
+    int n = 0;
+    for (const QString &file : ownFiles(folder))
+        if (!file.endsWith(".tmp"))
+            ++n;
+    return n;
+}
+
 QList<Entry> list(const QString &folder)
 {
     QList<Entry> entries;

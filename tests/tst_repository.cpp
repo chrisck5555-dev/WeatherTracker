@@ -139,6 +139,87 @@ private slots:
         QVERIFY(!report.contains("SECRET-NOTE-TEXT"));
         QVERIFY(!report.contains("12.3456"));
     }
+
+    void reportHidesTheUserName()
+    {
+        const QString log =
+            "2026-10-27 10:00:00  v1.0.0: Could not open C:\\Users\\Chris\\AppData\\Roaming\\WeatherTracker\\weather.db\n"
+            "2026-10-27 10:00:01  v1.0.0: Backup to C:/Users/Chris/Documents/Weather Tracker backups failed\n"
+            "2026-10-27 10:00:02  v1.0.0: Signed in as chris; Christmas notes untouched";
+        const QString out = ProblemReport::redact(log, "C:/Users/Chris", "Chris");
+        QVERIFY2(!out.contains("Users\\Chris") && !out.contains("Users/Chris"), qPrintable(out));
+        QVERIFY(out.contains("<user>\\AppData\\Roaming"));
+        QVERIFY(out.contains("<user>/Documents"));
+        QVERIFY(out.contains("Signed in as <user>;"));           // any letter case
+        QVERIFY(out.contains("Christmas"));                        // part of another word: kept
+        // Very short names are not replaced (they would mangle ordinary words).
+        QCOMPARE(ProblemReport::redact("Al was here", "C:/Users/Al", "Al"), QString("Al was here"));
+    }
+
+    void deleteDayRemovesOnlyThatDay()
+    {
+        WeatherDay w;
+        w.highC = 5;
+        const QDate other = d.addDays(1);
+        for (const QDate &day : {d, other}) {
+            QVERIFY(repo->saveWeather(day, w));
+            QVERIFY(repo->saveNote(day, "note"));
+            QVERIFY(repo->saveEvents(day, QSet<QString>{"first_frost"}));
+        }
+        QVERIFY(repo->deleteDay(d));
+        QVERIFY(!repo->weatherFor(d).has_value());
+        QCOMPARE(repo->note(d), QString());
+        QVERIFY(repo->events(d).isEmpty());
+        QVERIFY(repo->weatherFor(other).has_value());              // the next day is untouched
+        QCOMPARE(repo->note(other), QString("note"));
+        QVERIFY(!repo->events(other).isEmpty());
+    }
+
+    void eraseAllKeepsSettings()
+    {
+        WeatherDay w;
+        w.highC = 5;
+        QVERIFY(repo->saveWeather(d, w));
+        QVERIFY(repo->saveNote(d, "note"));
+        QVERIFY(repo->setSetting("units", "imperial"));
+        QVERIFY(repo->eraseAll());
+        const auto c = repo->counts();
+        QCOMPARE(c.weatherDays + c.noteDays + c.eventDays, 0);
+        QCOMPARE(repo->setting("units"), QString("imperial"));
+    }
+
+    void erasedNotesAreGoneFromTheFile()
+    {
+        QTemporaryDir dir;
+        const QString file = dir.filePath("weather.db");
+        {
+            Repository real(file);
+            QVERIFY(real.saveNote(d, "MY-PRIVATE-NOTE-0123456789"));
+            QVERIFY(real.saveNote(d.addDays(1), "ANOTHER-PRIVATE-NOTE-9876543210"));
+            QVERIFY(real.deleteDay(d));                             // one day, then everything
+            QVERIFY(real.eraseAll());
+        }
+        QFile f(file);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QByteArray bytes = f.readAll();
+        QVERIFY(!bytes.contains("MY-PRIVATE-NOTE"));
+        QVERIFY(!bytes.contains("ANOTHER-PRIVATE-NOTE"));
+    }
+
+    void deletedDayIsWipedFromTheFileToo()
+    {
+        QTemporaryDir dir;
+        const QString file = dir.filePath("weather.db");
+        {
+            Repository real(file);
+            QVERIFY(real.saveNote(d, "WIPE-ME-PLEASE-0123456789"));
+            QVERIFY(real.saveNote(d.addDays(1), "keep me"));
+            QVERIFY(real.deleteDay(d));
+        }
+        QFile f(file);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QVERIFY(!f.readAll().contains("WIPE-ME-PLEASE"));            // secure_delete is on
+    }
 };
 
 QTEST_GUILESS_MAIN(TestRepository)

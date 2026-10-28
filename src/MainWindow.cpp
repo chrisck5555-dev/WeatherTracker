@@ -5,6 +5,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -42,6 +43,7 @@
 #include "StatsView.h"
 #include "Theme.h"
 #include "ThemeManager.h"
+#include "Toast.h"
 #include "Version.h"
 #include "WeekView.h"
 #include "YearView.h"
@@ -227,8 +229,10 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     auto *calendarPage = new QWidget;
     auto *calendarLayout = new QVBoxLayout(calendarPage);
     auto *dayView = new DayView(*m_state, m_repo);
+    m_dayView = dayView;
     auto *weekView = new WeekView(*m_state, m_repo);
     auto *monthGrid = new MonthGridWidget(*m_state, m_repo);
+    m_monthGrid = monthGrid;
     auto *yearView = new YearView(*m_state);
     m_editor = new EditorView(m_repo);
 
@@ -307,6 +311,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     setCentralWidget(root);
     m_panelHost = new PanelHost(root);            // Search and Go to date appear on top of the window
     m_panelHost->setUnderlying(m_pages);
+    m_toast = new Toast(root);                    // "Deleted ... [Undo]" at the bottom
 
     // --- Wiring: navigation ---
     connect(m_prevButton, &QPushButton::clicked, this, [this] {
@@ -429,6 +434,15 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     });
     auto *helpKey = new QShortcut(QKeySequence::HelpContents, this);       // F1, from anywhere
     connect(helpKey, &QShortcut::activated, this, &MainWindow::openGuide);
+
+    // --- Wiring: deleting a day, and Undo ---
+    connect(dayView, &DayView::deleteRequested, this, &MainWindow::deleteDay);
+    auto *undoKey = new QShortcut(QKeySequence::Undo, this);               // Ctrl+Z
+    connect(undoKey, &QShortcut::activated, this, [this] {
+        if (!m_editing)                       // in a text box, Ctrl+Z belongs to the text box
+            m_toast->undo();
+    });
+    connect(m_settings, &SettingsView::dataErased, this, &MainWindow::reloadData);
 
     // --- Wiring: keep the display in step with the state ---
     connect(m_state, &AppState::currentDateChanged, this, &MainWindow::refreshNav);
@@ -788,4 +802,45 @@ void MainWindow::closeEvent(QCloseEvent *event)
     m_repo.setSetting("window_geometry", QString::fromLatin1(saveGeometry().toBase64()));
     runBackup();                              // a last backup before closing
     event->accept();
+}
+// ---------------- Deleting a day ----------------
+
+void MainWindow::deleteDay(const QDate &date)
+{
+    // Keep what was there, so Undo can put it back exactly.
+    const auto weather = m_repo.weatherFor(date);
+    const QString note = m_repo.note(date);
+    const QSet<QString> events = m_repo.events(date);
+    if (!m_repo.deleteDay(date)) {
+        QMessageBox::warning(this, "Weather Tracker",
+                             "Sorry, this day could not be deleted. Nothing was changed.\n\n"
+                             + m_repo.lastError());
+        return;
+    }
+    reloadData();
+    const QString day = date.toString("dddd, MMMM d, yyyy");
+    m_toast->showMessage("Deleted everything recorded for " + day + ".",
+                         [this, date, day, weather, note, events] {
+        bool ok = true;
+        if (weather)
+            ok = m_repo.saveWeather(date, *weather) && ok;
+        if (!note.isEmpty())
+            ok = m_repo.saveNote(date, note) && ok;
+        if (!events.isEmpty())
+            ok = m_repo.saveEvents(date, events) && ok;
+        reloadData();
+        if (ok)
+            m_toast->showMessage(day + " is back.", nullptr);
+        else
+            QMessageBox::warning(this, "Weather Tracker",
+                                 "Sorry, the day could not be put back completely.\n\n"
+                                 + m_repo.lastError());
+    });
+}
+
+void MainWindow::reloadData()
+{
+    m_monthGrid->reloadData();
+    m_dayView->reload();                      // the other views reload when they are shown
+    refreshAddToday();
 }

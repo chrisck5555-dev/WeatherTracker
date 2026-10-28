@@ -1,7 +1,9 @@
 #include "SettingsView.h"
 
 #include <QButtonGroup>
+#include <QCheckBox>
 #include <QCoreApplication>
+#include <QDialog>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
@@ -11,6 +13,7 @@
 #include <QLabel>
 #include <QLocale>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
 #include <QScrollArea>
@@ -138,17 +141,36 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     auto *openFolderButton = smallButton("Open backups folder");
     auto *saveCopyButton = smallButton("Save a copy to\u2026");
     auto *loadCopyButton = smallButton("Load a copy from\u2026");
+    auto *openDataButton = smallButton("Open data folder");
+    auto *eraseButton = smallButton("Erase all my weather data\u2026");
+    auto *deleteBackupsButton = smallButton("Delete all backups\u2026");
     auto *dataGrid = new QGridLayout;
     dataGrid->addWidget(backupNowButton, 0, 0);
     dataGrid->addWidget(restoreButton, 0, 1);
     dataGrid->addWidget(openFolderButton, 0, 2);
     dataGrid->addWidget(saveCopyButton, 1, 0);
     dataGrid->addWidget(loadCopyButton, 1, 1);
+    dataGrid->addWidget(openDataButton, 1, 2);
+    dataGrid->addWidget(eraseButton, 2, 0);
+    dataGrid->addWidget(deleteBackupsButton, 2, 1);
     dataGrid->setColumnStretch(3, 1);
     auto *copyNote = new QLabel("To move your data to another computer: press \"Save a copy to\", "
                                 "choose the USB stick, then on the other computer press "
                                 "\"Load a copy from\" and choose that file.");
     copyNote->setWordWrap(true);
+
+    // --- Your privacy ---
+    auto *privacyNote = new QLabel(
+        "Everything you type stays on this computer, in the data folder shown above. "
+        "Backups are kept in your Documents folder.\n\n"
+        "The program uses the internet only when you press \"Check for updates\" (under "
+        "About). It then asks GitHub for the newest version number. Nothing you have "
+        "written is ever sent.");
+    privacyNote->setWordWrap(true);
+    privacyNote->setTextFormat(Qt::PlainText);
+
+    m_allowUpdates = new QCheckBox("Allow \"Check for updates\" to use the internet");
+    m_allowUpdates->setMinimumHeight(44);
 
     // --- About ---
     auto *about = new QLabel(QString("Weather Tracker version %1\nCreated by %2\n"
@@ -156,7 +178,10 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
                                  .arg(QString::fromUtf8(APP_VERSION), QString::fromUtf8(APP_AUTHOR),
                                       QString::fromLatin1(qVersion())));
     about->setWordWrap(true);
-    auto *updateButton = smallButton("Check for updates");
+    m_updateButton = smallButton("Check for updates");
+    auto *updateButton = m_updateButton;
+    m_updateNote = new QLabel("Checking for updates is turned off under \"Your privacy\".");
+    m_updateNote->setWordWrap(true);
     m_updates = new UpdateChecker(this);
 
     // --- Help ---
@@ -189,6 +214,10 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     body->addLayout(dataGrid);
     body->addWidget(copyNote);
     body->addSpacing(16);
+    body->addWidget(heading("Your privacy"));
+    body->addWidget(privacyNote);
+    body->addWidget(m_allowUpdates);
+    body->addSpacing(16);
     body->addWidget(heading("Help"));
     body->addLayout(helpRow);
     body->addSpacing(16);
@@ -199,6 +228,7 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     body->addWidget(heading("About"));
     body->addWidget(about);
     body->addWidget(updateButton, 0, Qt::AlignLeft);
+    body->addWidget(m_updateNote);
     body->addStretch(1);
 
     auto *scroll = new QScrollArea;
@@ -231,18 +261,7 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     connect(m_brightGroup, &QButtonGroup::idClicked, this, [](int id) {
         ThemeManager::instance()->setBrightness(static_cast<Theme::Brightness>(id));
     });
-    connect(reportButton, &QPushButton::clicked, this, [this] {
-        const QString folder = QFileInfo(AppLog::path()).absolutePath();
-        const QString file = ProblemReport::write(m_repo, folder, AppLog::tail(40));
-        if (file.isEmpty()) {
-            QMessageBox::warning(this, "Weather Tracker",
-                                 "Sorry, the problem report could not be created.");
-            return;
-        }
-        // Open the folder with the report highlighted. /select needs backslashes.
-        QProcess::startDetached("explorer.exe",
-                                {"/select," + QDir::toNativeSeparators(file)});
-    });
+    connect(reportButton, &QPushButton::clicked, this, &SettingsView::showProblemReport);
     connect(backupNowButton, &QPushButton::clicked, this, [this] {
         QString error;
         if (!Backups::backupNow(m_repo, &error))
@@ -294,6 +313,17 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     });
     connect(guideButton, &QPushButton::clicked, this, &SettingsView::guideRequested);
     connect(tourButton, &QPushButton::clicked, this, &SettingsView::tourRequested);
+    connect(openDataButton, &QPushButton::clicked, this, [this] {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(m_repo.path()).absolutePath()));
+    });
+    connect(eraseButton, &QPushButton::clicked, this, &SettingsView::eraseAllData);
+    connect(deleteBackupsButton, &QPushButton::clicked, this, &SettingsView::deleteAllBackups);
+
+    connect(m_allowUpdates, &QCheckBox::toggled, this, [this](bool on) {
+        m_repo.setSetting("update_check", on ? "on" : "off");
+        refreshPrivacy();
+    });
+
     connect(updateButton, &QPushButton::clicked, this, [this, updateButton] {
         updateButton->setEnabled(false);
         updateButton->setText("Checking\u2026");
@@ -387,6 +417,121 @@ void SettingsView::open()
 
     m_sizeNote->clear();
     refreshBackupInfo();
+    refreshPrivacy();
+}
+
+void SettingsView::refreshPrivacy()
+{
+    const bool updates = m_repo.setting("update_check", "on") != "off";
+    {
+        const QSignalBlocker quiet(m_allowUpdates);    // showing the state is not a change
+        m_allowUpdates->setChecked(updates);
+    }
+    m_updates->setAllowed(updates);
+    m_updateButton->setEnabled(updates);
+    m_updateNote->setVisible(!updates);
+}
+
+void SettingsView::showProblemReport()
+{
+    const QString text = ProblemReport::build(m_repo, AppLog::tail(40));
+
+    // Show exactly what will be in the file before anything is saved.
+    QDialog preview(this);
+    preview.setWindowTitle("Your problem report");
+    preview.resize(760, 600);
+    auto *intro = new QLabel("This is everything in the report. It has no weather values, "
+                             "and no notes, and your Windows user name is replaced "
+                             "with <user>. Press \"Save the report\" to save it as a file you "
+                             "can attach to an email.");
+    intro->setWordWrap(true);
+    intro->setTextFormat(Qt::PlainText);
+    auto *view = new QPlainTextEdit(text);
+    view->setReadOnly(true);
+    auto *cancel = new QPushButton("Cancel");
+    auto *save = new QPushButton("Save the report");
+    for (auto *b : {cancel, save})
+        b->setMinimumSize(160, 52);
+    save->setDefault(true);
+    auto *buttons = new QHBoxLayout;
+    buttons->addWidget(cancel);
+    buttons->addStretch(1);
+    buttons->addWidget(save);
+    auto *layout = new QVBoxLayout(&preview);
+    layout->addWidget(intro);
+    layout->addWidget(view, 1);
+    layout->addLayout(buttons);
+    connect(cancel, &QPushButton::clicked, &preview, &QDialog::reject);
+    connect(save, &QPushButton::clicked, &preview, &QDialog::accept);
+    if (preview.exec() != QDialog::Accepted)
+        return;
+
+    const QString folder = QFileInfo(AppLog::path()).absolutePath();
+    const QString file = ProblemReport::write(folder, text);
+    if (file.isEmpty()) {
+        QMessageBox::warning(this, "Weather Tracker",
+                             "Sorry, the problem report could not be created.");
+        return;
+    }
+    // Open the folder with the report highlighted. /select needs backslashes.
+    QProcess::startDetached("explorer.exe", {"/select," + QDir::toNativeSeparators(file)});
+}
+
+void SettingsView::eraseAllData()
+{
+    const Repository::Counts c = m_repo.counts();
+    if (c.weatherDays + c.noteDays + c.eventDays == 0) {
+        QMessageBox::information(this, "Weather Tracker", "There is no weather data to erase.");
+        return;
+    }
+    if (!Confirm::destructive(this, "Erase all your weather data?",
+            QString("This erases %1 days of weather, %2 notes and the events on %3 days.\n\n"
+                    "Your settings and backups are kept, and a safety copy of the data is "
+                    "saved in the backups folder first.")
+                .arg(c.weatherDays).arg(c.noteDays).arg(c.eventDays),
+            "Keep my data", "Erase everything"))
+        return;
+
+    QString error;
+    if (Backups::safetyCopy(m_repo, &error).isEmpty()) {
+        QMessageBox::warning(this, "Weather Tracker",
+                             "The safety copy could not be made, so nothing was erased.\n\n" + error);
+        return;
+    }
+    if (!m_repo.eraseAll()) {
+        QMessageBox::warning(this, "Weather Tracker",
+                             "Sorry, the data could not be erased. Nothing was changed.\n\n"
+                             + m_repo.lastError());
+        return;
+    }
+    AppLog::write("All weather data was erased (a safety copy was made first)");
+    emit dataErased();
+    QMessageBox::information(this, "Weather Tracker",
+        "All weather data was erased.\n\nThe safety copy and your backups are still in the "
+        "backups folder. To remove those too, press \"Delete all backups\".");
+}
+
+void SettingsView::deleteAllBackups()
+{
+    const int n = Backups::countAll();
+    if (n == 0) {
+        QMessageBox::information(this, "Weather Tracker", "There are no backups to delete.");
+        return;
+    }
+    if (!Confirm::destructive(this, "Delete all backups?",
+            QString("This deletes %1 backup %2 from:\n%3\n\nYour weather data in the program "
+                    "is not changed. The program makes a new backup each day.")
+                .arg(n).arg(n == 1 ? "file" : "files")
+                .arg(QDir::toNativeSeparators(Backups::defaultFolder())),
+            "Keep the backups", "Delete the backups"))
+        return;
+    const bool ok = Backups::deleteAll();
+    AppLog::write(ok ? "All backups were deleted" : "Some backups could not be deleted");
+    refreshBackupInfo();
+    if (!ok)
+        QMessageBox::warning(this, "Weather Tracker",
+                             "Some backups could not be deleted. They may be open in another "
+                             "program. Please try again.");
 }
 
 void SettingsView::chooseSize(TextSize::Size size)

@@ -16,6 +16,12 @@ UpdateChecker::UpdateChecker(QObject *parent) : QObject(parent) {}
 
 void UpdateChecker::check()
 {
+    if (!m_allowed) {                               // she turned it off: no connection at all
+        Result r;
+        r.error = "Checking for updates is turned off in Settings, under \"Your privacy\".";
+        emit finished(r);
+        return;
+    }
     const QString api = QString::fromUtf8(APP_UPDATE_API);
     if (api.isEmpty()) {
         Result r;

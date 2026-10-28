@@ -6,7 +6,10 @@
 
 #include "AppState.h"      // needs the Tab enum
 
+class DayView;
 class EditorView;
+class MonthGridWidget;
+class Toast;
 class PanelHost;
 class TourOverlay;
 class PeriodSelector;
@@ -43,6 +46,8 @@ private:
     void openGoToDate();
     void resetForTour();                // the known screen each tour step starts from
     void tourReport(const QString &event);
+    void deleteDay(const QDate &date);  // with an Undo in the toast
+    void reloadData();                  // after data changed outside the editor
 
     Repository &m_repo;
     AppState *m_state;
@@ -58,6 +63,9 @@ private:
     QPushButton *m_settingsButton = nullptr;
     QPushButton *m_searchButton = nullptr;
     QPushButton *m_goToDateButton = nullptr;
+    Toast *m_toast = nullptr;
+    DayView *m_dayView = nullptr;
+    MonthGridWidget *m_monthGrid = nullptr;
     QStackedWidget *m_calendarStack = nullptr;
     QStackedWidget *m_pages = nullptr;
     SettingsView *m_settings = nullptr;

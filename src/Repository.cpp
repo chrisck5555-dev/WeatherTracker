@@ -59,6 +59,7 @@ void Repository::applyPragmas()
 {
     QSqlQuery q(QSqlDatabase::database(m_conn, false));
     q.exec("PRAGMA trusted_schema = OFF");              // never run code stored in the file
+    q.exec("PRAGMA secure_delete = ON");                // deleted notes are wiped, not just unlinked
 }
 
 Repository::~Repository()
@@ -322,6 +323,66 @@ bool Repository::setSetting(const QString &key, const QString &value)
         return true;
     m_error = q.lastError().text();
     return false;
+}
+
+// ---------------- Deleting ----------------
+
+bool Repository::deleteDay(const QDate &date)
+{
+    QSqlDatabase db = QSqlDatabase::database(m_conn, false);
+    if (!db.transaction()) {
+        m_error = db.lastError().text();
+        return false;
+    }
+    bool ok = true;
+    for (const char *sql : {"DELETE FROM weather WHERE date = ?",
+                            "DELETE FROM notes WHERE date = ?",
+                            "DELETE FROM events WHERE date = ?"}) {
+        QSqlQuery q(db);
+        q.prepare(QString::fromLatin1(sql));
+        q.addBindValue(iso(date));
+        if (!q.exec()) {
+            m_error = q.lastError().text();
+            ok = false;
+            break;
+        }
+    }
+    if (ok && db.commit())
+        return true;                                    // all three, or none
+    if (ok)
+        m_error = db.lastError().text();
+    db.rollback();
+    return false;
+}
+
+bool Repository::eraseAll()
+{
+    QSqlDatabase db = QSqlDatabase::database(m_conn, false);
+    if (!db.transaction()) {
+        m_error = db.lastError().text();
+        return false;
+    }
+    bool ok = true;
+    for (const char *sql : {"DELETE FROM weather", "DELETE FROM notes", "DELETE FROM events"}) {
+        QSqlQuery q(db);
+        if (!q.exec(QString::fromLatin1(sql))) {
+            m_error = q.lastError().text();
+            ok = false;
+            break;
+        }
+    }
+    if (!ok || !db.commit()) {
+        if (ok)
+            m_error = db.lastError().text();
+        db.rollback();
+        return false;
+    }
+    // Rebuild the file so nothing erased is left in its unused space. (secure_delete
+    // already blanks it; VACUUM also makes the file small again.) A failed VACUUM leaves
+    // the data erased, so it is not an error.
+    QSqlQuery vacuum(db);
+    vacuum.exec("VACUUM");
+    return true;
 }
 
 QList<Repository::NoteHit> Repository::searchNotes(const QString &needle, int limit) const

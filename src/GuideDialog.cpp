@@ -25,6 +25,9 @@ GuideDialog::GuideDialog(QWidget *parent)
         "<p>For another day, open it on the Calendar tab and press <b>Add / edit this day</b>. "
         "Besides the weather, each day has a <b>note</b> for anything you want to remember and "
         "a list of <b>events</b>, such as the first snow.</p>"
+        "<p>To remove everything recorded for a day, open it and press <b>Delete this day</b>. "
+        "A message at the bottom of the window lets you <b>Undo</b> it for a few seconds "
+        "(or press <b>Ctrl+Z</b>).</p>"
 
         "<h2>Looking at your days</h2>"
         "<p>On the <b>Calendar</b> tab, <b>Show</b> chooses a Day, a Week, a Month or a Year. "
@@ -53,7 +56,8 @@ GuideDialog::GuideDialog(QWidget *parent)
 
         "<h2>Keyboard shortcuts</h2>"
         "<p><b>Left</b> and <b>Right</b> arrows: previous and next. <b>T</b>: today. "
-        "<b>Ctrl+F</b>: Search. <b>Ctrl+G</b>: Go to date. <b>F1</b>: this guide.</p>"
+        "<b>Ctrl+F</b>: Search. <b>Ctrl+G</b>: Go to date. <b>F1</b>: this guide. "
+        "<b>Ctrl+Z</b>: undo deleting a day.</p>"
 
         "<h2>Settings</h2>"
         "<p>Choose metric or imperial units, the text size, and the look of the program "
@@ -66,9 +70,18 @@ GuideDialog::GuideDialog(QWidget *parent)
         "In <b>Settings</b> you can back up right now, go back to an older backup, or "
         "<b>Save a copy</b> on a USB stick and <b>Load a copy</b> on another computer.</p>"
 
+        "<h2>Your privacy</h2>"
+        "<p>Everything you type stays on this computer. The program uses the internet only "
+        "when you press <b>Check for updates</b>, and you can turn that off in Settings, "
+        "under <b>Your privacy</b>.</p>"
+        "<p><b>Erase all my weather data</b> removes every day from the program, and "
+        "<b>Delete all backups</b> removes the backup files.</p>"
+
         "<h2>If something goes wrong</h2>"
-        "<p>In Settings, press <b>Show my problem report</b> and attach the file it shows to "
-        "an email. It never contains your weather values or notes.</p>");
+        "<p>In Settings, press <b>Show my problem report</b>. It shows you the report first; "
+        "press <b>Save the report</b> and attach the file it shows to an email. It never "
+        "contains your weather values or notes, and your Windows user name is replaced "
+        "with &lt;user&gt;.</p>");
 
     auto *close = new QPushButton("Close");
     close->setMinimumSize(140, 52);

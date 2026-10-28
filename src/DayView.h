@@ -22,6 +22,7 @@ public:
 
 signals:
     void editRequested(const QDate &date);
+    void deleteRequested(const QDate &date);   // "Delete this day" (the window offers Undo)
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -33,6 +34,7 @@ private:
     Repository &m_repo;
     QTextBrowser *m_text = nullptr;
     QPushButton *m_editButton = nullptr;   // top "Add / edit this day"
+    QPushButton *m_deleteButton = nullptr; // under the text; only when the day has something
     QWidget *m_banner = nullptr;           // weather picture strip (clay looks only)
     QLabel *m_emptyPicture = nullptr;      // friendly picture above the empty-day message
     QWidget *m_empty = nullptr;            // shown instead of m_text when nothing is recorded

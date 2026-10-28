@@ -120,14 +120,23 @@ DayView::DayView(AppState &state, Repository &repo, QWidget *parent)
     top->setContentsMargins(0, 0, 0, 0);
     top->addWidget(m_editButton);
     top->addStretch(1);
+    // Deleting sits at the bottom, away from "Add / edit", so it is not pressed by accident.
+    m_deleteButton = new QPushButton("Delete this day");
+    m_deleteButton->setMinimumHeight(44);
+    m_deleteButton->setToolTip("Deletes this day's weather, note and events. "
+                               "You can undo it right after.");
+
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(m_banner);
     layout->addWidget(m_text, 1);
     layout->addWidget(m_empty, 1);
+    layout->addWidget(m_deleteButton, 0, Qt::AlignRight);
 
     const auto requestEdit = [this] { emit editRequested(m_state.currentDate()); };
     connect(m_editButton, &QPushButton::clicked, this, requestEdit);
     connect(emptyAdd, &QPushButton::clicked, this, requestEdit);
+    connect(m_deleteButton, &QPushButton::clicked, this,
+            [this] { emit deleteRequested(m_state.currentDate()); });
     connect(&m_state, &AppState::currentDateChanged, this, [this] {
         if (isVisible())                 // hidden views refresh when shown instead
             refresh();
@@ -153,6 +162,7 @@ void DayView::refresh()
     m_empty->setVisible(empty);
     m_text->setVisible(!empty);
     m_banner->setVisible(!empty);                  // the strip holds the top button
+    m_deleteButton->setVisible(!empty);
 
     // Clay looks: the strip is taller and shows a picture matching the day's weather behind
     // the button. Other looks (or a missing picture): just the button, no extra height.

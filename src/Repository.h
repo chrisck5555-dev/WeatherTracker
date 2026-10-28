@@ -48,6 +48,12 @@ public:
     QString setting(const QString &key, const QString &defaultValue = QString()) const;
     bool setSetting(const QString &key, const QString &value);
 
+    // Deleting. deleteDay() removes the day's weather, note and events together.
+    // eraseAll() removes every day's weather, notes and events (settings are kept) and
+    // rebuilds the file so nothing erased can be read back out of it.
+    bool deleteDay(const QDate &date);
+    bool eraseAll();
+
     // Search: notes containing the text, and days that have any of the given events.
     // Newest day first, at most `limit` results.
     struct NoteHit { QDate date; QString text; };

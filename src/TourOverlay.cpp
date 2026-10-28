@@ -117,7 +117,8 @@ TourOverlay::TourOverlay(QWidget *root, PanelHost *host, Hooks hooks)
           {"Press “Go to date”", "gotoOpened"},
           {"Close it", "gotoClosed"}}},
         {"Settings",
-         "Settings changes the units, the text size and the colours, and keeps your backups.",
+         "Settings changes the units, the text size and the colours, keeps your backups, and "
+         "has your privacy choices.",
          {{"Press “Settings”", "settingsOpened"},
           {"Press “Done”", "settingsDone"}}},
         {"All done",

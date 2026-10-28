@@ -82,6 +82,25 @@ private slots:
         QVERIFY(!repo.replaceWith(dir.filePath("junk.db")));
         QVERIFY(repo.isOpen());                                   // still working afterwards
     }
+
+    void deleteAllRemovesOnlyOurFiles()
+    {
+        QTemporaryDir dir;
+        Repository repo(dir.filePath("weather.db"));
+        const QString folder = dir.filePath("b");
+        QVERIFY(Backups::backupNow(repo, nullptr, folder, QDate(2026, 7, 1)));
+        QVERIFY(Backups::backupNow(repo, nullptr, folder, QDate(2026, 7, 2)));
+        QVERIFY(!Backups::safetyCopy(repo, nullptr, folder).isEmpty());
+        QFile mine(folder + "/my-own-file.db");                   // something she put there
+        QVERIFY(mine.open(QIODevice::WriteOnly));
+        mine.close();
+
+        QCOMPARE(Backups::countAll(folder), 3);
+        QVERIFY(Backups::deleteAll(folder));
+        QCOMPARE(Backups::countAll(folder), 0);
+        QVERIFY(Backups::list(folder).isEmpty());
+        QVERIFY(QFile::exists(folder + "/my-own-file.db"));        // never touched
+    }
 };
 
 QTEST_GUILESS_MAIN(TestBackups)
