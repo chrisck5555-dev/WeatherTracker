@@ -1,6 +1,6 @@
 #pragma once
 
-inline constexpr const char* APP_VERSION = "1.0.0";
+inline constexpr const char* APP_VERSION = "1.1.0";
 // Where "Check for updates" looks. Leave empty until the GitHub page exists, then use
 // "https://api.github.com/repos/YOUR-GITHUB-NAME/YOUR-REPOSITORY/releases/latest".
 inline constexpr const char* APP_UPDATE_API =

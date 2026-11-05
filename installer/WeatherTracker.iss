@@ -1,7 +1,7 @@
 ; The AppId must NEVER change: it is how a newer Setup upgrades the old install.
 ; Needs Inno Setup 6.6 or newer (for the dark-mode wizard images).
 #define MyAppName "Weather Tracker"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppExe "WeatherTracker.exe"
 
 [Setup]
