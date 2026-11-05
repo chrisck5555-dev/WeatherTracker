@@ -120,6 +120,7 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     m_motion = new QCheckBox("Short animations when the view changes");
     m_motion->setMinimumHeight(44);
     m_motion->setToolTip("They are also off whenever Windows' animation effects are turned off.");
+    m_motion->setVisible(Display::kViewAnimationsInThisVersion);   // hidden while they are off
 
     // --- Problem report ---
     auto *reportButton = new QPushButton("Show my problem report");

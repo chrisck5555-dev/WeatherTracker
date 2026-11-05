@@ -75,8 +75,7 @@ GuideDialog::GuideDialog(QWidget *parent)
 
         "<h2>Settings</h2>"
         "<p>Choose metric or imperial units, the text size, and the look of the program "
-        "(soft or high contrast, light or dark), and whether views change with a short "
-        "animation. Your records are always stored in metric, "
+        "(soft or high contrast, light or dark). Your records are always stored in metric, "
         "so switching units never changes them.</p>"
 
         "<h2>Backups, and moving your data</h2>"

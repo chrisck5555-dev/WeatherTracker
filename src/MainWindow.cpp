@@ -1097,6 +1097,7 @@ QWidget *MainWindow::contentArea() const
 
 void MainWindow::refreshMotion()
 {
-    m_transition->setEnabled(m_repo.setting("motion", "on") != "off"
+    m_transition->setEnabled(Display::kViewAnimationsInThisVersion
+                             && m_repo.setting("motion", "on") != "off"
                              && Display::animationsAllowed());
 }
