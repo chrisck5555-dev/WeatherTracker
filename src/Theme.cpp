@@ -30,6 +30,7 @@ Colors colors(Style style, bool dark)
             c.window = "#e9eef7";  c.surface = "#f6f8fd";
             c.text = "#1f2a44";    c.mutedText = "#4a5878";
             c.border = "#c5cfe3";  c.highlight = "#ffffff";  c.shadow = "#b4c0da";
+            c.inputBorder = "#7a87a5";
             c.accent = "#3f6fd8";  c.accentText = "#ffffff";
             c.error = "#b3261e";
             c.high = "#d6453d";    c.low = "#3f6fd8";
@@ -39,6 +40,7 @@ Colors colors(Style style, bool dark)
             c.window = "#1d2233";  c.surface = "#2a3048";
             c.text = "#eef1fa";    c.mutedText = "#b4bdd6";
             c.border = "#3d4663";  c.highlight = "#3c4566";  c.shadow = "#11141f";
+            c.inputBorder = "#7b86ab";
             c.accent = "#5b8def";  c.accentText = "#0e1424";
             c.error = "#ff8a80";
             c.high = "#ff7b72";    c.low = "#79a6ff";
@@ -66,6 +68,8 @@ Colors colors(Style style, bool dark)
             c.markWeather = "#6bb7ff"; c.markNote = "#ffd400"; c.markEvent = "#5dff8f";
         }
     }
+    if (style == Style::HighContrast)
+        c.inputBorder = c.border;                   // already black or white
     return c;
 }
 

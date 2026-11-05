@@ -47,6 +47,16 @@ public:
     // Settings (help on/off, units, text size...)
     QString setting(const QString &key, const QString &defaultValue = QString()) const;
     bool setSetting(const QString &key, const QString &value);
+    bool removeSetting(const QString &key);
+
+    // Everything recorded for one day, so it can be put back exactly (Undo).
+    struct DayRecord {
+        std::optional<WeatherDay> weather;
+        QString note;
+        QSet<QString> events;
+    };
+    DayRecord dayRecord(const QDate &date) const;
+    bool restoreDay(const QDate &date, const DayRecord &record);   // the day becomes `record`
 
     // Deleting. deleteDay() removes the day's weather, note and events together.
     // eraseAll() removes every day's weather, notes and events (settings are kept) and

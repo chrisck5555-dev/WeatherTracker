@@ -12,6 +12,10 @@ bool wasRelaunched();                   // true in a copy started by relaunchWit
 QSize unscaledAvailableSize();          // screen work area as it would be at scale 1.0
 QList<TextSize::Size> allowedTextSizes();
 
+// False when Windows' "Animation effects" is turned off (Settings > Accessibility >
+// Visual effects). The program then never animates, whatever its own setting says.
+bool animationsAllowed();
+
 // Start a new copy of the program at this scale. The caller then quits.
 bool relaunchWithScale(double factor);
 

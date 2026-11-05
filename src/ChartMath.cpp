@@ -1,5 +1,7 @@
 #include "ChartMath.h"
 
+#include "Format.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -214,6 +216,72 @@ std::optional<Axis> lineAxis(const LineSeries &s)
             a.max = a.step;
     }
     return a;
+}
+
+namespace {
+
+QString dayText(const QDate &d) { return d.toString("MMMM d"); }
+
+// "highest 21.5 °C on July 3, lowest 4 °C on July 20"; empty when there are no values.
+QString extremes(const QDate &first, const QList<std::optional<double>> &values,
+                 const QString &unit)
+{
+    int hi = -1, lo = -1;
+    for (int i = 0; i < values.size(); ++i) {
+        if (!values[i])
+            continue;
+        if (hi < 0 || *values[i] > *values[hi]) hi = i;
+        if (lo < 0 || *values[i] < *values[lo]) lo = i;
+    }
+    if (hi < 0)
+        return QString();
+    return QString("highest %1 %2 on %3, lowest %4 %2 on %5")
+        .arg(Format::number(*values[hi], 1), unit, dayText(first.addDays(hi)),
+             Format::number(*values[lo], 1), dayText(first.addDays(lo)));
+}
+
+} // namespace
+
+QString describeTemperatures(const TempSeries &s, const QString &unit)
+{
+    const QString high = extremes(s.first, s.high, unit);
+    const QString low = extremes(s.first, s.low, unit);
+    if (high.isEmpty() && low.isEmpty())
+        return "Nothing recorded for this period yet.";
+    QStringList parts;
+    if (!high.isEmpty())
+        parts << "Daily highs: " + high + ".";
+    if (!low.isEmpty())
+        parts << "Daily lows: " + low + ".";
+    return parts.join(' ');
+}
+
+QString describeBars(const BarSeries &s, const QString &unit)
+{
+    if (!s.hasAnyBar)
+        return s.hasAnyData ? "None in this period." : "Nothing recorded for this period yet.";
+    double total = 0;
+    int most = 0;
+    for (int i = 0; i < s.values.size(); ++i) {
+        total += s.values[i];
+        if (s.values[i] > s.values[most])
+            most = i;
+    }
+    return QString("Total %1 %2. The most was %3 %2, at %4.")
+        .arg(Format::number(total, 1), unit, Format::number(s.values[most], 1),
+             most < s.labels.size() ? s.labels[most] : QString());
+}
+
+QString describeLines(const LineSeries &s, const QString &unit)
+{
+    QStringList parts;
+    for (int i = 0; i < s.values.size(); ++i) {
+        const QString e = extremes(s.first, s.values[i], unit);
+        if (!e.isEmpty())
+            parts << (i < s.names.size() && s.values.size() > 1 ? s.names[i] + ": " : QString())
+                   + e + ".";
+    }
+    return parts.isEmpty() ? QString("Nothing recorded for this period yet.") : parts.join(' ');
 }
 
 } // namespace ChartMath

@@ -20,10 +20,15 @@ protected:
     void paintEvent(QPaintEvent *) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    bool event(QEvent *event) override;                 // claims the arrow keys
+    void keyPressEvent(QKeyEvent *event) override;      // arrows move a month, Enter opens it
+    void focusInEvent(QFocusEvent *event) override;
+    void focusOutEvent(QFocusEvent *event) override;
     QSize minimumSizeHint() const override { return QSize(620, 420); }
 
 private:
     QRectF tileRect(int index) const;     // 0..11
+    void updateAccessibleText();
 
     AppState &m_state;
     int m_pressed = -1;                   // tile being pressed

@@ -10,6 +10,7 @@
 #include "PeriodMath.h"
 #include "Repository.h"
 #include "Units.h"
+#include "Typography.h"
 
 namespace {
 constexpr int kRowHeight = 46;
@@ -74,7 +75,7 @@ void RecordsView::paintEvent(QPaintEvent *)
     p.setRenderHint(QPainter::Antialiasing);
     const QPalette pal = palette();     // no fill: the window behind paints the background
 
-    QFont normal = font();
+    QFont normal = tabularDigits(font());
     normal.setPointSize(14);
     QFont bold = normal;
     bold.setBold(true);

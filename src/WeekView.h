@@ -27,10 +27,15 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    bool event(QEvent *event) override;                 // claims Up/Down
+    void keyPressEvent(QKeyEvent *event) override;      // Up/Down move a day, Enter opens it
+    void focusInEvent(QFocusEvent *event) override;
+    void focusOutEvent(QFocusEvent *event) override;
     QSize minimumSizeHint() const override { return QSize(620, 420); }
 
 private:
     void reload();
+    void updateAccessibleText();
     QDate weekStart() const;
     QRectF rowRect(int row) const;
 

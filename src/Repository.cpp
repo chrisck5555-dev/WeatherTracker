@@ -325,6 +325,32 @@ bool Repository::setSetting(const QString &key, const QString &value)
     return false;
 }
 
+bool Repository::removeSetting(const QString &key)
+{
+    QSqlQuery q(QSqlDatabase::database(m_conn, false));
+    q.prepare("DELETE FROM settings WHERE key = ?");
+    q.addBindValue(key);
+    if (q.exec())
+        return true;
+    m_error = q.lastError().text();
+    return false;
+}
+
+// ---------------- One whole day (for Undo) ----------------
+
+Repository::DayRecord Repository::dayRecord(const QDate &date) const
+{
+    return DayRecord{weatherFor(date), note(date), events(date)};
+}
+
+bool Repository::restoreDay(const QDate &date, const DayRecord &record)
+{
+    bool ok = saveWeather(date, record.weather.value_or(WeatherDay{}));   // empty = no row
+    ok = saveNote(date, record.note) && ok;
+    ok = saveEvents(date, record.events) && ok;
+    return ok;
+}
+
 // ---------------- Deleting ----------------
 
 bool Repository::deleteDay(const QDate &date)

@@ -1,11 +1,15 @@
 #include "MainWindow.h"
 
 #include <QCloseEvent>
+#include <QCoreApplication>
+#include <QFileInfo>
+#include <QProcess>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -23,7 +27,9 @@
 #include "Artwork.h"
 #include "Backups.h"
 #include "ChartsView.h"
+#include "CommandPanel.h"
 #include "Confirm.h"
+#include "Display.h"
 #include "GoToDatePanel.h"
 #include "PanelHost.h"
 #include "SearchPanel.h"
@@ -94,6 +100,10 @@ constexpr int kAddTodayLift = 18;
 // QTabBar selects on press. This swallows the press and selects on release,
 // only if the release is over the same tab that was pressed. It also tells the
 // style which tab is down (property "pressedTab", -1 = none) so it can sink.
+//
+// Keyboard: when the tab bar has the focus, Left/Right/Home/End belong to it (the window
+// would otherwise turn Left/Right into Previous/Next), and switch tabs the same animated
+// way as a click.
 class ReleaseToSelect : public QObject
 {
 public:
@@ -103,9 +113,25 @@ public:
         bar->installEventFilter(this);
     }
 
+    // Lets the window animate the switch: it receives the new index and the change, and runs it.
+    std::function<void(int, const std::function<void()> &)> wrap;
+
 protected:
     bool eventFilter(QObject *, QEvent *e) override
     {
+        if (e->type() == QEvent::ShortcutOverride || e->type() == QEvent::KeyPress) {
+            auto *key = static_cast<QKeyEvent *>(e);
+            const int k = key->key();
+            if ((key->modifiers() & ~Qt::KeypadModifier)
+                || (k != Qt::Key_Left && k != Qt::Key_Right && k != Qt::Key_Home && k != Qt::Key_End))
+                return false;
+            if (e->type() == QEvent::ShortcutOverride) {
+                e->accept();                        // "these keys are mine"
+                return true;
+            }
+            select(target(k));
+            return true;
+        }
         if (e->type() != QEvent::MouseButtonPress
             && e->type() != QEvent::MouseButtonDblClick
             && e->type() != QEvent::MouseButtonRelease)
@@ -116,7 +142,7 @@ protected:
         const int index = m_bar->tabAt(me->position().toPoint());
         if (e->type() == QEvent::MouseButtonRelease) {
             if (index >= 0 && index == m_pressed)
-                m_bar->setCurrentIndex(index);
+                select(index);
             m_pressed = -1;
         } else {
             m_pressed = index;
@@ -127,6 +153,28 @@ protected:
     }
 
 private:
+    void select(int index)
+    {
+        if (index < 0 || index == m_bar->currentIndex() || !m_bar->isTabEnabled(index))
+            return;
+        auto change = [this, index] { m_bar->setCurrentIndex(index); };
+        if (wrap)
+            wrap(index, change);
+        else
+            change();
+    }
+
+    // The tab a key moves to: the next enabled one that way, or the first/last.
+    int target(int key) const
+    {
+        const int n = m_bar->count();
+        const int step = (key == Qt::Key_Left || key == Qt::Key_End) ? -1 : 1;
+        int i = key == Qt::Key_Home ? 0 : key == Qt::Key_End ? n - 1 : m_bar->currentIndex() + step;
+        while (i >= 0 && i < n && !m_bar->isTabEnabled(i))
+            i += step;
+        return (i >= 0 && i < n) ? i : -1;
+    }
+
     QTabBar *m_bar;
     int m_pressed = -1;
 };
@@ -205,6 +253,16 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     navBar->addWidget(m_nextButton);
     navBar->addWidget(m_todayButton);
 
+    // Each button says which key does the same thing.
+    m_prevButton->setToolTip("Go back (Left arrow key)");
+    m_nextButton->setToolTip("Go forward (Right arrow key)");
+    m_todayButton->setToolTip("Come back to today (T key)");
+    m_searchButton->setToolTip("Find days by their notes or events (Ctrl+F)");
+    m_goToDateButton->setToolTip("Jump to any date (Ctrl+G)");
+    m_settingsButton->setToolTip("Units, text size, look, backups and privacy");
+    m_helpButton->setToolTip("Show or hide the tips under the title. "
+                             "Press F1 for the user guide, or Ctrl+K for every command.");
+
     // Created ONCE here; refresh functions only update them.
     m_backButton = new QPushButton;
     m_backButton->setMinimumHeight(48);
@@ -223,7 +281,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
         {Period::Month, Period::Season, Period::Year, Period::All});
 
     m_tabs = new QTabWidget;
-    new ReleaseToSelect(m_tabs->tabBar());
+    auto *tabClicks = new ReleaseToSelect(m_tabs->tabBar());
 
     // Calendar page: selector on top, a stack of views below.
     auto *calendarPage = new QWidget;
@@ -244,6 +302,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     m_calendarStack->addWidget(yearView);     // 3
     m_calendarStack->addWidget(m_editor);     // 4
     sizeToCurrentPage(m_calendarStack);
+    m_tabContent[0] = m_calendarStack;
     calendarLayout->addWidget(m_calendarStack, 1);
     m_tabs->addTab(calendarPage, "Calendar");
 
@@ -258,13 +317,16 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     statsScroll->viewport()->setAutoFillBackground(false);   // let the background show through
     statsScroll->widget()->setAutoFillBackground(false);
     analyticsLayout->addWidget(statsScroll, 1);
+    m_tabContent[1] = statsScroll;
     m_tabs->addTab(analyticsPage, "Analytics");
 
     // Charts page
     auto *chartsPage = new QWidget;
     auto *chartsLayout = new QVBoxLayout(chartsPage);
     chartsLayout->addWidget(m_selectors[2]);
-    chartsLayout->addWidget(new ChartsView(*m_state, m_repo), 1);
+    auto *chartsView = new ChartsView(*m_state, m_repo);
+    chartsLayout->addWidget(chartsView, 1);
+    m_tabContent[2] = chartsView;
     m_tabs->addTab(chartsPage, "Charts");
 
     // Records page: selector on top, the painted records in a scroll area.
@@ -279,6 +341,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     recordsScroll->viewport()->setAutoFillBackground(false);
     recordsView->setAutoFillBackground(false);
     recordsLayout->addWidget(recordsScroll, 1);
+    m_tabContent[3] = recordsScroll;
     m_tabs->addTab(recordsPage, "Records");
     // The button goes in a holder so its position can be nudged (kAddTodayLift pixels up).
     auto *addTodayHolder = new QWidget;
@@ -312,75 +375,110 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     m_panelHost = new PanelHost(root);            // Search and Go to date appear on top of the window
     m_panelHost->setUnderlying(m_pages);
     m_toast = new Toast(root);                    // "Deleted ... [Undo]" at the bottom
+    m_transition = new ViewTransition(root);      // short fades and slides between views
+    refreshMotion();
+    m_transition->setFloating({m_toast});         // the undo bar stays above, not in the pictures
+    tabClicks->wrap = [this](int index, const std::function<void()> &change) {
+        animate(m_tabs->currentWidget(),
+                index > m_tabs->currentIndex() ? ViewTransition::Kind::Forward
+                                               : ViewTransition::Kind::Backward,
+                change);
+    };
+    // Any other switch (keyboard, command menu, tour) ends a running animation at once,
+    // so an old picture never lingers over a different tab or page.
+    auto stopAnimation = [this] {
+        if (!m_inAnimatedChange)
+            m_transition->finish();
+    };
+    connect(m_tabs, &QTabWidget::currentChanged, this, stopAnimation);
+    connect(m_pages, &QStackedWidget::currentChanged, this, stopAnimation);
 
     // --- Wiring: navigation ---
     connect(m_prevButton, &QPushButton::clicked, this, [this] {
-        const Period p = m_state->period(activeTab());
-        m_state->setCurrentDate(PeriodMath::step(m_state->currentDate(), p, -1));
+        animate(contentArea(), ViewTransition::Kind::Backward, [this] {
+            const Period p = m_state->period(activeTab());
+            m_state->setCurrentDate(PeriodMath::step(m_state->currentDate(), p, -1));
+        });
     });
     connect(m_nextButton, &QPushButton::clicked, this, [this] {
-        const Period p = m_state->period(activeTab());
-        m_state->setCurrentDate(PeriodMath::step(m_state->currentDate(), p, +1));
+        animate(contentArea(), ViewTransition::Kind::Forward, [this] {
+            const Period p = m_state->period(activeTab());
+            m_state->setCurrentDate(PeriodMath::step(m_state->currentDate(), p, +1));
+        });
         tourReport("next");
     });
     connect(m_todayButton, &QPushButton::clicked, this, [this] {
-        m_state->clearBack();
-        m_state->setCurrentDate(QDate::currentDate());
+        animate(contentArea(), towards(QDate::currentDate()), [this] {
+            m_state->clearBack();
+            m_state->setCurrentDate(QDate::currentDate());
+        });
     });
 
     for (int i = 0; i < 4; ++i) {
         const Tab tab = static_cast<Tab>(i);
         connect(m_selectors[i], &PeriodSelector::periodChosen, this,
                 [this, tab](Period p) {
-                    m_state->clearBack();     // choosing a view starts fresh
-                    m_state->setPeriod(tab, p);
+                    // Day, Week, Month, Year: a bigger period comes from the right.
+                    const auto kind = int(p) > int(m_state->period(tab))
+                        ? ViewTransition::Kind::Forward : ViewTransition::Kind::Backward;
+                    animate(contentArea(), kind, [this, tab, p] {
+                        m_state->clearBack();     // choosing a view starts fresh
+                        m_state->setPeriod(tab, p);
+                    });
                     if (tab == Tab::Calendar && p == Period::Week)
                         tourReport("week");
                 });
     }
 
     // --- Wiring: drilling in and Back ---
-    connect(monthGrid, &MonthGridWidget::dayActivated, this,
-            [this](const QDate &d) { m_state->openCalendar(Period::Day, d); tourReport("dayOpened"); });
-    connect(monthGrid, &MonthGridWidget::weekActivated, this,
-            [this](const QDate &d) { m_state->openCalendar(Period::Week, d); });
-    connect(weekView, &WeekView::dayActivated, this,
-            [this](const QDate &d) { m_state->openCalendar(Period::Day, d); tourReport("dayOpened"); });
-    connect(yearView, &YearView::monthActivated, this,
-            [this](const QDate &d) { m_state->openCalendar(Period::Month, d); });
-    connect(recordsView, &RecordsView::dayActivated, this, [this](const QDate &d) {
-        m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
-        m_state->openCalendar(Period::Day, d);
+    auto openOnCalendar = [this](Period p, const QDate &d) {
+        animate(contentArea(), ViewTransition::Kind::Forward,      // deeper
+                [this, p, d] { m_state->openCalendar(p, d); });
+    };
+    connect(monthGrid, &MonthGridWidget::dayActivated, this, [openOnCalendar, this](const QDate &d) {
+        openOnCalendar(Period::Day, d);
+        tourReport("dayOpened");
     });
-    connect(m_backButton, &QPushButton::clicked, m_state, &AppState::goBack);
+    connect(monthGrid, &MonthGridWidget::weekActivated, this,
+            [openOnCalendar](const QDate &d) { openOnCalendar(Period::Week, d); });
+    connect(weekView, &WeekView::dayActivated, this, [openOnCalendar, this](const QDate &d) {
+        openOnCalendar(Period::Day, d);
+        tourReport("dayOpened");
+    });
+    connect(yearView, &YearView::monthActivated, this,
+            [openOnCalendar](const QDate &d) { openOnCalendar(Period::Month, d); });
+    connect(recordsView, &RecordsView::dayActivated, this, [this](const QDate &d) {
+        animate(m_tabs->currentWidget(), ViewTransition::Kind::Forward, [this, d] {
+            m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
+            m_state->openCalendar(Period::Day, d);
+        });
+    });
+    connect(m_backButton, &QPushButton::clicked, this, [this] {
+        animate(contentArea(), ViewTransition::Kind::Backward, [this] { m_state->goBack(); });
+    });
 
     // --- Wiring: editor ---
     connect(dayView, &DayView::editRequested, this, [this](const QDate &d) {
-        m_editor->open(d);
-        m_editing = true;
-        refreshNav();
+        animate(m_calendarStack, ViewTransition::Kind::Forward, [this, d] {
+            m_editor->open(d);
+            m_editing = true;
+            refreshNav();
+        });
         tourReport("editorOpened");
     });
     connect(m_editor, &EditorView::finished, this, [this, monthGrid](bool saved) {
-        m_editing = false;
+        animate(m_calendarStack, ViewTransition::Kind::Backward, [this, monthGrid, saved] {
+            m_editing = false;
+            if (m_backupPending)
+                runBackup();                  // the midnight backup that was waiting
+            if (saved)
+                monthGrid->reloadData();      // Day and Week views reload when shown
+            refreshNav();
+        });
         if (!saved)
             tourReport("editorCancelled");
-        if (m_backupPending)
-            runBackup();                      // the midnight backup that was waiting
-        if (saved)
-            monthGrid->reloadData();          // Day and Week views reload when shown
-        refreshNav();
     });
-    connect(m_addTodayButton, &QPushButton::clicked, this, [this] {
-        m_state->clearBack();
-        m_state->setPeriod(Tab::Calendar, Period::Day);
-        m_state->setCurrentDate(QDate::currentDate());
-        m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
-        m_editor->open(QDate::currentDate());
-        m_editing = true;
-        refreshNav();
-        tourReport("editorOpened");
-    });
+    connect(m_addTodayButton, &QPushButton::clicked, this, &MainWindow::openTodayEditor);
 
     // --- Wiring: search and go to date, and the keyboard shortcuts ---
     connect(m_searchButton, &QPushButton::clicked, this, &MainWindow::openSearch);
@@ -403,6 +501,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     shortcut(QKeySequence(Qt::Key_T), press(m_todayButton));
     shortcut(QKeySequence::Find, press(m_searchButton));                    // Ctrl+F
     shortcut(QKeySequence(Qt::CTRL | Qt::Key_G), press(m_goToDateButton));
+    shortcut(QKeySequence(Qt::CTRL | Qt::Key_K), [this] { openCommands(); });
     // While a panel is open the keys belong to the panel (typing, calendar arrows).
     connect(m_panelHost, &PanelHost::opened, this, [this] {
         for (QShortcut *sc : m_shortcuts) sc->setEnabled(false);
@@ -418,12 +517,15 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     // --- Wiring: settings ---
     connect(m_settingsButton, &QPushButton::clicked, this, [this] {
         m_settings->open();
-        m_pages->setCurrentIndex(1);
+        animate(m_pages, ViewTransition::Kind::Forward, [this] { m_pages->setCurrentIndex(1); });
         tourReport("settingsOpened");
     });
     connect(m_settings, &SettingsView::done, this, [this] {
-        m_pages->setCurrentIndex(0);
-        refreshNav();
+        refreshMotion();                          // the Motion choice may have changed
+        animate(m_pages, ViewTransition::Kind::Backward, [this] {
+            m_pages->setCurrentIndex(0);
+            refreshNav();
+        });
         tourReport("settingsDone");
     });
     connect(m_settings, &SettingsView::guideRequested, this, &MainWindow::openGuide);
@@ -442,7 +544,33 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
         if (!m_editing)                       // in a text box, Ctrl+Z belongs to the text box
             m_toast->undo();
     });
-    connect(m_settings, &SettingsView::dataErased, this, &MainWindow::reloadData);
+    connect(m_settings, &SettingsView::dataErased, this, [this](const QString &safetyCopy) {
+        reloadData();
+        m_toast->showMessage("All weather data was erased. Your backups are still in the "
+                             "backups folder.", [this, safetyCopy] {
+            if (!m_repo.replaceWith(safetyCopy)) {
+                QMessageBox::warning(this, "Weather Tracker",
+                                     "Sorry, the data could not be put back.\n\n" + m_repo.lastError());
+                return;
+            }
+            AppLog::write("Erasing all weather data was undone");
+            reloadData();
+            m_toast->showMessage("Your weather data is back.", nullptr);
+        });
+    });
+    connect(m_editor, &EditorView::erasedOnSave, this,
+            [this](const QDate &date, const QString &what, const Repository::DayRecord &before) {
+        const QString day = date.toString("dddd, MMMM d, yyyy");
+        m_toast->showMessage("Saved " + day + ", and removed " + what + ".",
+                             [this, date, day, before] {
+            if (!m_repo.restoreDay(date, before))
+                QMessageBox::warning(this, "Weather Tracker",
+                                     "Sorry, the day could not be put back completely.\n\n"
+                                     + m_repo.lastError());
+            reloadData();
+            m_toast->showMessage(day + " is back the way it was.", nullptr);
+        });
+    });
 
     // --- Wiring: keep the display in step with the state ---
     connect(m_state, &AppState::currentDateChanged, this, &MainWindow::refreshNav);
@@ -482,6 +610,30 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
         m_repo.setSetting("last_tab", QString::number(index));
         tourReport(QString("tab%1").arg(index));
     });
+
+    // Just restarted after "Restore from backup" or "Load a copy": offer Undo, which goes
+    // back to the safety copy made before the data was replaced. Cleared at once, so the
+    // offer is made only this one time.
+    const QString undoReplace = m_repo.setting("undo_replace");
+    if (!undoReplace.isEmpty()) {
+        m_repo.removeSetting("undo_replace");
+        if (QFileInfo::exists(undoReplace))
+            QTimer::singleShot(0, this, [this, undoReplace] {
+                m_toast->showMessage("Your weather data was replaced.", [this, undoReplace] {
+                    if (!m_repo.replaceWith(undoReplace)) {
+                        QMessageBox::warning(this, "Weather Tracker",
+                                             "Sorry, the data could not be put back.\n\n"
+                                             + m_repo.lastError());
+                        return;
+                    }
+                    AppLog::write("Replacing the weather data was undone");
+                    QMessageBox::information(this, "Weather Tracker",
+                                             "Your data was put back. Weather Tracker will now restart.");
+                    QProcess::startDetached(QCoreApplication::applicationFilePath(), {});
+                    QCoreApplication::quit();
+                });
+            });
+    }
 
     // The first time the program opens: a short tour (after the window is on screen).
     if (m_repo.setting("tour_done") != "1")
@@ -622,14 +774,89 @@ void MainWindow::openSearch()
     connect(panel, &SearchPanel::closeRequested, m_panelHost, &PanelHost::closePanel);
     connect(panel, &SearchPanel::dayChosen, this, [this](const QDate &d) {
         m_panelHost->closePanel();
-        m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
-        m_state->openCalendar(Period::Day, d);
+        animate(m_tabs->currentWidget(), ViewTransition::Kind::Forward, [this, d] {
+            m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
+            m_state->openCalendar(Period::Day, d);
+        });
     });
     if (auto *input = panel->findChild<QLineEdit *>())
         connect(input, &QLineEdit::textEdited, this, [this] { tourReport("searchTyped"); });
     m_panelKind = 1;
     m_panelHost->showPanel(panel, QSize(760, 640));
     tourReport("searchOpened");
+}
+
+void MainWindow::openTodayEditor()
+{
+    m_state->clearBack();
+    m_state->setPeriod(Tab::Calendar, Period::Day);
+    m_state->setCurrentDate(QDate::currentDate());
+    m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
+    m_editor->open(QDate::currentDate());
+    m_editing = true;
+    refreshNav();
+    tourReport("editorOpened");
+}
+
+void MainWindow::openCommands()
+{
+    if (m_panelHost->isOpen() || m_editing || m_tour)
+        return;
+    auto tab = [this](Tab t) {
+        return [this, t] { m_tabs->setCurrentIndex(static_cast<int>(t)); };
+    };
+    auto show = [this](Period p) {
+        return [this, p] {
+            m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
+            m_state->clearBack();
+            m_state->setPeriod(Tab::Calendar, p);
+        };
+    };
+    auto press = [](QPushButton *b) {
+        return [b] { if (b->isVisible() && b->isEnabled()) b->click(); };
+    };
+    const bool recorded = m_repo.weatherFor(m_state->today()).has_value();
+    QList<Command> commands = {
+        {recorded ? "Edit today's weather" : "Add today's weather", "", "new write enter record",
+         [this] { openTodayEditor(); }},
+        {"Show one day", "", "calendar", show(Period::Day)},
+        {"Show a week", "", "calendar", show(Period::Week)},
+        {"Show a month", "", "calendar", show(Period::Month)},
+        {"Show a year", "", "calendar", show(Period::Year)},
+        {"Go back", "Left arrow", "previous earlier", press(m_prevButton)},
+        {"Go forward", "Right arrow", "next later", press(m_nextButton)},
+        {"Go to today", "T", "now this", press(m_todayButton)},
+        {"Go to a date", "Ctrl+G", "jump find day", [this] { openGoToDate(); }},
+        {"Search notes and events", "Ctrl+F", "find look", [this] { openSearch(); }},
+        {"Undo the last delete", "Ctrl+Z", "back restore", [this] { m_toast->undo(); }},
+        {"Open the Calendar tab", "", "", tab(Tab::Calendar)},
+        {"Open the Analytics tab", "", "averages totals numbers", tab(Tab::Analytics)},
+        {"Open the Charts tab", "", "graph lines", tab(Tab::Charts)},
+        {"Open the Records tab", "", "hottest coldest streaks", tab(Tab::Records)},
+        {"Back up now", "", "backup copy save", [this] {
+             QString error;
+             if (Backups::backupNow(m_repo, &error))
+                 m_toast->showMessage("A backup was saved.", nullptr);
+             else
+                 QMessageBox::warning(this, "Weather Tracker",
+                                      "Sorry, the backup could not be made.\n\n" + error);
+         }},
+        {"Open Settings", "", "options units text size look backup privacy",
+         press(m_settingsButton)},
+        {"Show or hide the tips", "", "help hints", [this] { m_helpButton->toggle(); }},
+        {"Open the user guide", "F1", "help manual", [this] { openGuide(); }},
+        {"Show the tour again", "", "help welcome", [this] { openTour(); }},
+    };
+
+    auto *panel = new CommandPanel(commands);
+    connect(panel, &CommandPanel::closeRequested, m_panelHost, &PanelHost::closePanel);
+    connect(panel, &CommandPanel::chosen, this, [this](const Command &command) {
+        const auto run = command.run;
+        m_panelHost->closePanel();
+        QTimer::singleShot(0, this, run);         // after the menu has closed
+    });
+    m_panelKind = 3;
+    m_panelHost->showPanel(panel, QSize(680, 620));
 }
 
 void MainWindow::openGoToDate()
@@ -640,8 +867,10 @@ void MainWindow::openGoToDate()
     connect(panel, &GoToDatePanel::cancelled, m_panelHost, &PanelHost::closePanel);
     connect(panel, &GoToDatePanel::dateChosen, this, [this](const QDate &d) {
         m_panelHost->closePanel();
-        m_state->clearBack();
-        m_state->setCurrentDate(d);               // stays on this tab and view
+        animate(contentArea(), towards(d), [this, d] {
+            m_state->clearBack();
+            m_state->setCurrentDate(d);           // stays on this tab and view
+        });
     });
     m_panelKind = 2;
     m_panelHost->showPanel(panel, QSize(600, 600));
@@ -777,7 +1006,8 @@ void MainWindow::refreshHelp()
     static const char *const hints[4] = {
         "Calendar: choose Day, Week, Month or Year with the \"Show:\" buttons. "
         "Use the Previous and Next buttons, or the Left and Right arrow keys, to move around. "
-        "Press T for today. Press F1 for the user guide.",
+        "Press T for today. Press F1 for the user guide, or Ctrl+K for a list of everything "
+        "you can do.",
         "Analytics: choose a period with the \"Numbers for:\" buttons to see "
         "averages and totals for it.",
         "Charts: choose Month, Season or Year to see temperature and "
@@ -808,9 +1038,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 void MainWindow::deleteDay(const QDate &date)
 {
     // Keep what was there, so Undo can put it back exactly.
-    const auto weather = m_repo.weatherFor(date);
-    const QString note = m_repo.note(date);
-    const QSet<QString> events = m_repo.events(date);
+    const Repository::DayRecord before = m_repo.dayRecord(date);
     if (!m_repo.deleteDay(date)) {
         QMessageBox::warning(this, "Weather Tracker",
                              "Sorry, this day could not be deleted. Nothing was changed.\n\n"
@@ -820,14 +1048,8 @@ void MainWindow::deleteDay(const QDate &date)
     reloadData();
     const QString day = date.toString("dddd, MMMM d, yyyy");
     m_toast->showMessage("Deleted everything recorded for " + day + ".",
-                         [this, date, day, weather, note, events] {
-        bool ok = true;
-        if (weather)
-            ok = m_repo.saveWeather(date, *weather) && ok;
-        if (!note.isEmpty())
-            ok = m_repo.saveNote(date, note) && ok;
-        if (!events.isEmpty())
-            ok = m_repo.saveEvents(date, events) && ok;
+                         [this, date, day, before] {
+        const bool ok = m_repo.restoreDay(date, before);
         reloadData();
         if (ok)
             m_toast->showMessage(day + " is back.", nullptr);
@@ -843,4 +1065,38 @@ void MainWindow::reloadData()
     m_monthGrid->reloadData();
     m_dayView->reload();                      // the other views reload when they are shown
     refreshAddToday();
+}
+
+// ---------------- View transitions ----------------
+
+void MainWindow::animate(QWidget *area, ViewTransition::Kind kind, const std::function<void()> &change)
+{
+    if (m_tour) {                             // the tour's own overlay must stay on top
+        change();
+        return;
+    }
+    m_transition->capture(area);
+    if (m_toast->isVisible())
+        m_toast->raise();                     // the undo bar stays above the fading picture
+    m_inAnimatedChange = true;
+    change();
+    m_inAnimatedChange = false;
+    m_transition->play(kind);
+}
+
+ViewTransition::Kind MainWindow::towards(const QDate &date) const
+{
+    return date >= m_state->currentDate() ? ViewTransition::Kind::Forward
+                                          : ViewTransition::Kind::Backward;
+}
+
+QWidget *MainWindow::contentArea() const
+{
+    return m_tabContent[std::size_t(m_tabs->currentIndex())];
+}
+
+void MainWindow::refreshMotion()
+{
+    m_transition->setEnabled(m_repo.setting("motion", "on") != "off"
+                             && Display::animationsAllowed());
 }

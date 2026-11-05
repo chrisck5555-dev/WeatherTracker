@@ -150,6 +150,34 @@ private slots:
         empty.values = {0.0, 0.0};
         QVERIFY(ChartMath::barAxis(empty).max >= 1.0);   // no data: still a usable axis
     }
+    void describesChartsInWords()
+    {
+        ChartMath::TempSeries t;
+        t.first = QDate(2026, 7, 1);
+        t.high = {20.0, std::nullopt, 31.5};
+        t.low = {8.0, std::nullopt, 12.25};
+        QCOMPARE(ChartMath::describeTemperatures(t, "\u00B0C"),
+                 QString("Daily highs: highest 31.5 \u00B0C on July 3, lowest 20 \u00B0C on July 1. "
+                         "Daily lows: highest 12.3 \u00B0C on July 3, lowest 8 \u00B0C on July 1."));
+        QCOMPARE(ChartMath::describeTemperatures(ChartMath::TempSeries{}, "\u00B0C"),
+                 QString("Nothing recorded for this period yet."));
+
+        ChartMath::BarSeries b;
+        b.values = {0, 4.5, 2};
+        b.labels = {"1", "2", "3"};
+        b.hasAnyData = b.hasAnyBar = true;
+        QCOMPARE(ChartMath::describeBars(b, "mm"), QString("Total 6.5 mm. The most was 4.5 mm, at 2."));
+        b.hasAnyBar = false;
+        QCOMPARE(ChartMath::describeBars(b, "mm"), QString("None in this period."));
+
+        ChartMath::LineSeries l;
+        l.first = QDate(2026, 7, 1);
+        l.names = {"Wind", "Gust"};
+        l.values = {{10.0, 25.0}, {std::nullopt, 60.0}};
+        QCOMPARE(ChartMath::describeLines(l, "km/h"),
+                 QString("Wind: highest 25 km/h on July 2, lowest 10 km/h on July 1. "
+                         "Gust: highest 60 km/h on July 2, lowest 60 km/h on July 2."));
+    }
 };
 
 QTEST_APPLESS_MAIN(TestChartMath)

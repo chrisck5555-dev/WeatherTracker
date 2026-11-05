@@ -1,5 +1,6 @@
 #include "WeekView.h"
 
+#include <QKeyEvent>
 #include <QLocale>
 #include <QMouseEvent>
 #include <QPainter>
@@ -9,12 +10,14 @@
 #include "Artwork.h"
 #include "ClayPaint.h"
 #include "Format.h"
+#include "KeyboardNav.h"
 #include "Markers.h"
 #include "PeriodMath.h"
 #include "Repository.h"
 #include "Theme.h"
 #include "ThemeManager.h"
 #include "WeatherIcons.h"
+#include "Typography.h"
 
 WeekView::WeekView(AppState &state, Repository &repo, QWidget *parent)
     : QWidget(parent), m_state(state), m_repo(repo)
@@ -23,6 +26,55 @@ WeekView::WeekView(AppState &state, Repository &repo, QWidget *parent)
         if (isVisible()) { reload(); update(); }
     });
     connect(&m_state, &AppState::todayChanged, this, qOverload<>(&QWidget::update));
+    setFocusPolicy(Qt::TabFocus);                      // only Tab, not a mouse click
+    setAccessibleDescription("Week. The Up and Down arrow keys move one day, Left and Right "
+                             "change the week, and Enter opens the day.");
+}
+
+void WeekView::updateAccessibleText()
+{
+    const QDate d = m_state.currentDate();
+    const auto it = m_weather.constFind(d);
+    KeyboardNav::announce(this, Format::describeDay(
+        d, it == m_weather.constEnd() ? std::nullopt : std::optional<WeatherDay>(*it),
+        m_noteDates.contains(d), m_eventDates.contains(d), m_units));
+}
+
+bool WeekView::event(QEvent *event)
+{
+    // Left and Right stay with the window (previous and next week).
+    if (KeyboardNav::claim(event, {Qt::Key_Up, Qt::Key_Down, Qt::Key_PageUp, Qt::Key_PageDown}))
+        return true;
+    return QWidget::event(event);
+}
+
+void WeekView::keyPressEvent(QKeyEvent *event)
+{
+    const QDate d = m_state.currentDate();
+    switch (event->key()) {
+    case Qt::Key_Up:       m_state.setCurrentDate(d.addDays(-1)); break;
+    case Qt::Key_Down:     m_state.setCurrentDate(d.addDays(1)); break;
+    case Qt::Key_PageUp:   m_state.setCurrentDate(d.addDays(-7)); break;
+    case Qt::Key_PageDown: m_state.setCurrentDate(d.addDays(7)); break;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+    case Qt::Key_Space:    emit dayActivated(d); break;
+    default:               QWidget::keyPressEvent(event); return;
+    }
+    event->accept();
+}
+
+void WeekView::focusInEvent(QFocusEvent *event)
+{
+    QWidget::focusInEvent(event);
+    updateAccessibleText();
+    update();
+}
+
+void WeekView::focusOutEvent(QFocusEvent *event)
+{
+    QWidget::focusOutEvent(event);
+    update();
 }
 
 QDate WeekView::weekStart() const
@@ -44,6 +96,7 @@ void WeekView::reload()
     m_weather = m_repo.weatherInRange(m_loadedStart, end);
     m_noteDates = m_repo.datesWithNotes(m_loadedStart, end);
     m_eventDates = m_repo.datesWithEvents(m_loadedStart, end);
+    updateAccessibleText();
     update();
 }
 
@@ -84,7 +137,7 @@ void WeekView::paintEvent(QPaintEvent *)
     if (!Artwork::isClay())                       // clay: the page behind paints the pattern
         p.fillRect(rect(), pal.color(QPalette::Window));
 
-    QFont f = font();
+    QFont f = tabularDigits(font());
     f.setPointSize(14);
     p.setFont(f);
     const QDate today = QDate::currentDate();
@@ -142,8 +195,10 @@ void WeekView::paintEvent(QPaintEvent *)
         if (date == today) {
             p.setPen(QPen(pal.color(QPalette::Highlight), 3));
             p.setBrush(Qt::NoBrush);
-            p.drawRoundedRect(r.adjusted(1.5, 1.5, -1.5, -1.5), clay ? 14 : 0, clay ? 14 : 0);
+            p.drawPath(ClayPaint::shape(r.adjusted(1.5, 1.5, -1.5, -1.5), clay ? 14 : 0));
         }
+        if (hasFocus() && date == m_state.currentDate())
+            ClayPaint::drawFocusRing(p, r, clay ? 14 : 0);
     }
 
     // --- Legend ---
@@ -152,7 +207,7 @@ void WeekView::paintEvent(QPaintEvent *)
     p.setFont(lf);
     p.setPen(QPen(pal.color(QPalette::Highlight), 3));
     p.setBrush(Qt::NoBrush);
-    p.drawRoundedRect(QRectF(12, height() - 24, 22, 16), clay ? 6 : 0, clay ? 6 : 0);
+    p.drawPath(ClayPaint::shape(QRectF(12, height() - 24, 22, 16), clay ? 6 : 0));
     p.setPen(pal.color(QPalette::WindowText));
     p.drawText(QRectF(42, height() - 28, 200, 24), Qt::AlignVCenter | Qt::AlignLeft, "Today");
 }

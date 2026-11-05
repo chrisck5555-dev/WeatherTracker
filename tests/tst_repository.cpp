@@ -156,6 +156,36 @@ private slots:
         QCOMPARE(ProblemReport::redact("Al was here", "C:/Users/Al", "Al"), QString("Al was here"));
     }
 
+    void dayRecordPutsADayBackExactly()
+    {
+        WeatherDay w;
+        w.highC = 3.25;
+        w.cloud = "Overcast";
+        QVERIFY(repo->saveWeather(d, w));
+        QVERIFY(repo->saveNote(d, "first frost on the car"));
+        QVERIFY(repo->saveEvents(d, QSet<QString>{"first_frost"}));
+        const Repository::DayRecord before = repo->dayRecord(d);
+
+        QVERIFY(repo->deleteDay(d));
+        QVERIFY(repo->restoreDay(d, before));
+        QVERIFY(*repo->weatherFor(d) == w);
+        QCOMPARE(repo->note(d), QString("first frost on the car"));
+        QCOMPARE(repo->events(d), QSet<QString>{"first_frost"});
+
+        // Putting back an EMPTY day clears what is there now.
+        QVERIFY(repo->restoreDay(d, Repository::DayRecord{}));
+        QVERIFY(!repo->weatherFor(d).has_value());
+        QCOMPARE(repo->note(d), QString());
+        QVERIFY(repo->events(d).isEmpty());
+    }
+
+    void removedSettingFallsBackToTheDefault()
+    {
+        QVERIFY(repo->setSetting("undo_replace", "C:/x.db"));
+        QVERIFY(repo->removeSetting("undo_replace"));
+        QCOMPARE(repo->setting("undo_replace", "none"), QString("none"));
+    }
+
     void deleteDayRemovesOnlyThatDay()
     {
         WeatherDay w;

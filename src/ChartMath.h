@@ -74,4 +74,9 @@ LineSeries metricSeries(const QDate &from, const QDate &to,
 // unset when no line has any value
 std::optional<Axis> lineAxis(const LineSeries &s);
 
+// What a chart shows, in words, for screen readers. `unit` is the display unit ("°C").
+QString describeTemperatures(const TempSeries &s, const QString &unit);
+QString describeBars(const BarSeries &s, const QString &unit);
+QString describeLines(const LineSeries &s, const QString &unit);
+
 } // namespace ChartMath

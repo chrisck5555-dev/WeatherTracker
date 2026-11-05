@@ -6,8 +6,19 @@
 
 #include "ClayPaint.h"
 #include "Format.h"
+#include "Typography.h"
 
 BarChart::BarChart(QWidget *parent) : QWidget(parent) {}
+
+namespace {
+// "Wind (km/h)" -> "km/h": the unit is the part in brackets at the end of the title.
+QString unitOf(const QString &title)
+{
+    const int open = title.lastIndexOf('(');
+    const int close = title.lastIndexOf(')');
+    return open >= 0 && close > open ? title.mid(open + 1, close - open - 1) : QString();
+}
+} // namespace
 
 void BarChart::setData(const QString &title, const ChartMath::BarSeries &series,
                        const QColor &color)
@@ -15,6 +26,8 @@ void BarChart::setData(const QString &title, const ChartMath::BarSeries &series,
     m_title = title;
     m_data = series;
     m_color = color;
+    setAccessibleName(title + " chart");
+    setAccessibleDescription(ChartMath::describeBars(series, unitOf(title)));
     update();
 }
 
@@ -25,7 +38,7 @@ void BarChart::paintEvent(QPaintEvent *)
     const QPalette pal = palette();
     ClayPaint::drawCard(p, QRectF(rect()).adjusted(1, 1, -1, -1), 14, pal.color(QPalette::Base));
 
-    QFont f = font();
+    QFont f = tabularDigits(font());
     f.setPointSize(10);
     QFont title = f;
     title.setBold(true);

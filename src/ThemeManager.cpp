@@ -96,18 +96,24 @@ void ThemeManager::apply()
 
     const QString otherRules = QString(
         "QLineEdit, QPlainTextEdit, QComboBox, QTextBrowser { background: %1; color: %2; border: %3px solid %4; border-radius: %5px; padding: 4px; }"
+        "QLineEdit, QPlainTextEdit, QComboBox { border-color: %7; }"   // boxes she types in: easy to see
         "QLineEdit:disabled { color: %6; }"
-        "QTabWidget::pane { border: %3px solid %4; border-radius: %7px; }"
         "QMessageBox { background: %8; }")
         .arg(c.surface.name(), c.text.name())                  // 1, 2
         .arg(border)                                           // 3
         .arg(c.border.name())                                  // 4
         .arg(radius / 2)                                       // 5
         .arg(c.mutedText.name())                               // 6
-        .arg(radius)                                           // 7
+        .arg(c.inputBorder.name())                             // 7
         .arg(c.window.name());                                 // 8
 
-    qApp->setStyleSheet(contrastRules + otherRules);
+    // The outline around the tab pages. Clay draws it itself (ClayStyle, continuous corners).
+    const QString paneRule = contrast
+        ? QString("QTabWidget::pane { border: %1px solid %2; border-radius: %3px; }")
+              .arg(border).arg(c.border.name()).arg(radius)
+        : QString();
+
+    qApp->setStyleSheet(contrastRules + otherRules + paneRule);
 
     emit themeChanged();
     for (QWidget *w : QApplication::allWidgets())

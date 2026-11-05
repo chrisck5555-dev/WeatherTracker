@@ -154,7 +154,7 @@ EditorView::EditorView(Repository &repo, QWidget *parent)
     eventsLayout->setContentsMargins(0, 0, 0, 0);
     for (const EventType &e : eventTypes()) {
         auto *check = new QCheckBox(e.label);
-        check->setMinimumHeight(34);
+        check->setMinimumHeight(44);                // easy to hit (44 px, like every button)
         eventsLayout->addWidget(check);
         m_eventBoxes.append(check);
         m_eventKeys.append(e.key);
@@ -444,6 +444,7 @@ void EditorView::save()
             return;
     }
 
+    const Repository::DayRecord before = m_repo.dayRecord(m_date);   // for Undo
     bool saved = m_repo.saveWeather(m_date, day);
     saved = m_repo.saveNote(m_date, note) && saved;
     saved = m_repo.saveEvents(m_date, events) && saved;
@@ -452,6 +453,12 @@ void EditorView::save()
                              "Sorry, this day could not be saved.\n\n"
                              "Your other data is safe. Please try again.");
         return;
+    }
+    if (!erased.isEmpty()) {
+        const QString what = erased.size() == 1
+            ? erased.first()
+            : erased.mid(0, erased.size() - 1).join(", ") + " and " + erased.last();
+        emit erasedOnSave(m_date, what, before);
     }
     emit finished(true);
 }

@@ -18,8 +18,11 @@ public:
     void setPeriod(Period p);      // highlight the matching button
 
 signals:
-    void periodChosen(Period p);   // the user clicked a button
+    void periodChosen(Period p);   // the user clicked a button, or moved to one with the keyboard
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     QButtonGroup *m_group;
-};
+};

@@ -8,8 +8,19 @@
 
 #include "ClayPaint.h"
 #include "Format.h"
+#include "Typography.h"
 
 LineChart::LineChart(QWidget *parent) : QWidget(parent) {}
+
+namespace {
+// "Wind (km/h)" -> "km/h": the unit is the part in brackets at the end of the title.
+QString unitOf(const QString &title)
+{
+    const int open = title.lastIndexOf('(');
+    const int close = title.lastIndexOf(')');
+    return open >= 0 && close > open ? title.mid(open + 1, close - open - 1) : QString();
+}
+} // namespace
 
 void LineChart::setData(const QString &title, const ChartMath::LineSeries &series,
                         const QList<QColor> &colors, Period period)
@@ -18,6 +29,8 @@ void LineChart::setData(const QString &title, const ChartMath::LineSeries &serie
     m_data = series;
     m_colors = colors;
     m_period = period;
+    setAccessibleName(title + " chart");
+    setAccessibleDescription(ChartMath::describeLines(series, unitOf(title)));
     update();
 }
 
@@ -28,7 +41,7 @@ void LineChart::paintEvent(QPaintEvent *)
     const QPalette pal = palette();
     ClayPaint::drawCard(p, QRectF(rect()).adjusted(1, 1, -1, -1), 14, pal.color(QPalette::Base));
 
-    QFont f = font();
+    QFont f = tabularDigits(font());
     f.setPointSize(11);
     QFont title = f;
     title.setBold(true);

@@ -43,6 +43,22 @@ private slots:
         QCOMPARE(Format::precipitation("Rain", std::nullopt), QString("Rain"));
         QCOMPARE(Format::precipitation("", 2.0), QString("2 mm"));
     }
+    void describesADayForScreenReaders()
+    {
+        WeatherDay w;
+        w.cloud = "Overcast";
+        w.precipType = "Rain";
+        w.precipMm = 4;
+        w.highC = 8.5;
+        w.lowC = 1;
+        QCOMPARE(Format::describeDay(QDate(2026, 10, 27), w, true, false),
+                 QString("Tuesday, October 27, 2026. Overcast, rain, 4 mm, high 8.5 \u00B0C, "
+                         "low 1 \u00B0C. Has a note."));
+        QCOMPARE(Format::describeDay(QDate(2026, 10, 28), std::nullopt, false, false),
+                 QString("Wednesday, October 28, 2026. Nothing recorded."));
+        QCOMPARE(Format::describeDay(QDate(2026, 10, 29), WeatherDay{}, false, true),
+                 QString("Thursday, October 29, 2026. Weather recorded. Has an event."));
+    }
 };
 
 QTEST_APPLESS_MAIN(TestFormat)

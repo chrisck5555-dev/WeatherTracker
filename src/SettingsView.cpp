@@ -117,6 +117,10 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     }
     brightRow->addStretch(1);
 
+    m_motion = new QCheckBox("Short animations when the view changes");
+    m_motion->setMinimumHeight(44);
+    m_motion->setToolTip("They are also off whenever Windows' animation effects are turned off.");
+
     // --- Problem report ---
     auto *reportButton = new QPushButton("Show my problem report");
     reportButton->setMinimumSize(240, 46);
@@ -207,6 +211,7 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     body->addWidget(heading("Look"));
     body->addLayout(styleRow);
     body->addLayout(brightRow);
+    body->addWidget(m_motion);
     body->addSpacing(16);
     body->addWidget(heading("Your data and backups"));
     body->addWidget(dataNote);
@@ -319,6 +324,9 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     connect(eraseButton, &QPushButton::clicked, this, &SettingsView::eraseAllData);
     connect(deleteBackupsButton, &QPushButton::clicked, this, &SettingsView::deleteAllBackups);
 
+    connect(m_motion, &QCheckBox::toggled, this, [this](bool on) {
+        m_repo.setSetting("motion", on ? "on" : "off");
+    });
     connect(m_allowUpdates, &QCheckBox::toggled, this, [this](bool on) {
         m_repo.setSetting("update_check", on ? "on" : "off");
         refreshPrivacy();
@@ -383,7 +391,8 @@ void SettingsView::replaceData(const QString &file, const QString &what)
         return;
 
     QString error;
-    if (Backups::safetyCopy(m_repo, &error).isEmpty()) {
+    const QString safety = Backups::safetyCopy(m_repo, &error);
+    if (safety.isEmpty()) {
         QMessageBox::warning(this, "Weather Tracker",
                              "The safety copy could not be made, so nothing was changed.\n\n" + error);
         return;
@@ -395,6 +404,8 @@ void SettingsView::replaceData(const QString &file, const QString &what)
         return;
     }
     AppLog::write("Weather data was replaced from a backup or a copy");
+    // After the restart the window offers Undo, which goes back to this safety copy.
+    m_repo.setSetting("undo_replace", safety);
     QMessageBox::information(this, "Weather Tracker",
                              "Done. Weather Tracker will now restart.");
     QProcess::startDetached(QCoreApplication::applicationFilePath(), {});
@@ -415,6 +426,10 @@ void SettingsView::open()
     m_styleGroup->button(static_cast<int>(ThemeManager::instance()->style()))->setChecked(true);
     m_brightGroup->button(static_cast<int>(ThemeManager::instance()->brightness()))->setChecked(true);
 
+    {
+        const QSignalBlocker quiet(m_motion);
+        m_motion->setChecked(m_repo.setting("motion", "on") != "off");
+    }
     m_sizeNote->clear();
     refreshBackupInfo();
     refreshPrivacy();
@@ -493,7 +508,8 @@ void SettingsView::eraseAllData()
         return;
 
     QString error;
-    if (Backups::safetyCopy(m_repo, &error).isEmpty()) {
+    const QString safety = Backups::safetyCopy(m_repo, &error);
+    if (safety.isEmpty()) {
         QMessageBox::warning(this, "Weather Tracker",
                              "The safety copy could not be made, so nothing was erased.\n\n" + error);
         return;
@@ -505,10 +521,7 @@ void SettingsView::eraseAllData()
         return;
     }
     AppLog::write("All weather data was erased (a safety copy was made first)");
-    emit dataErased();
-    QMessageBox::information(this, "Weather Tracker",
-        "All weather data was erased.\n\nThe safety copy and your backups are still in the "
-        "backups folder. To remove those too, press \"Delete all backups\".");
+    emit dataErased(safety);                            // the window offers Undo
 }
 
 void SettingsView::deleteAllBackups()

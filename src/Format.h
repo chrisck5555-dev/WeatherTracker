@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Units.h"
+#include "WeatherDay.h"
 
+#include <QDate>
 #include <QString>
 #include <optional>
 
@@ -18,5 +20,10 @@ QString pressure(const std::optional<double> &hpa, Units::System s = Units::Syst
 QString text(const QString &s);                           // empty -> "Not recorded"
 QString precipitation(const QString &type, const std::optional<double> &mm,
                       Units::System s = Units::System::Metric);
+
+// A day in one or two sentences, for screen readers:
+// "Tuesday, October 27, 2026. Overcast, rain 4 mm, high 8.5 °C, low 1 °C. Has a note."
+QString describeDay(const QDate &date, const std::optional<WeatherDay> &weather,
+                    bool hasNote, bool hasEvent, Units::System s = Units::System::Metric);
 
 } // namespace Format

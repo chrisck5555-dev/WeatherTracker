@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Repository.h"
+
 #include <QDate>
 #include <QWidget>
 #include <QSet>
@@ -33,6 +35,9 @@ public:
 
 signals:
     void finished(bool saved);
+    // A save removed something that was stored before (she confirmed it). `before` is
+    // the whole day as it was, so the window can offer Undo.
+    void erasedOnSave(const QDate &date, const QString &what, const Repository::DayRecord &before);
 
 private:
     void save();

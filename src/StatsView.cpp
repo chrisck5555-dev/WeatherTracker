@@ -11,6 +11,7 @@
 #include "Repository.h"
 #include "Stats.h"
 #include "Units.h"
+#include "Typography.h"
 
 namespace {
 constexpr int kRowHeight = 46;
@@ -92,12 +93,20 @@ void StatsView::paintEvent(QPaintEvent *)
 int StatsView::layoutContent(QPainter *p) const
 {
     const QPalette pal = palette();
-    QFont normal = font();
+    QFont normal = tabularDigits(font());
     normal.setPointSize(14);
     QFont bold = normal;
     bold.setBold(true);
     QFont big = bold;
     big.setPointSize(16);
+
+    // Values sit in one column as wide as the widest value, right-aligned, so the
+    // numbers line up under each other (11.1 above 8.4).
+    const QFontMetrics boldMetrics(bold, const_cast<StatsView *>(this));
+    int valueWidth = 0;
+    for (const StatsRows::Row &row : m_rows)
+        if (!row.header)
+            valueWidth = qMax(valueWidth, boldMetrics.horizontalAdvance(row.value));
 
     const int textW = qMax(200, width() - 2 * kMargin);
     double y = kMargin;
@@ -135,9 +144,10 @@ int StatsView::layoutContent(QPainter *p) const
                 p->drawText(QRectF(r.left() + 16, r.top(), kLabelWidth, r.height()),
                             Qt::AlignVCenter | Qt::AlignLeft, row.label);
                 p->setFont(bold);
+                const double room = r.width() - kLabelWidth - 40;
                 p->drawText(QRectF(r.left() + kLabelWidth + 24, r.top(),
-                                   r.width() - kLabelWidth - 40, r.height()),
-                            Qt::AlignVCenter | Qt::AlignLeft, row.value);
+                                   qMin<double>(valueWidth + 2, room), r.height()),
+                            Qt::AlignVCenter | Qt::AlignRight, row.value);
             }
         }
         y += kRowHeight;

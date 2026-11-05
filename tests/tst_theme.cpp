@@ -18,7 +18,23 @@ private slots:
                 QVERIFY2(contrastRatio(c.text, c.surface) >= 7.0, "text on surface");
                 QVERIFY2(contrastRatio(c.mutedText, c.window) >= 4.5, "muted text");
                 QVERIFY2(contrastRatio(c.accentText, c.accent) >= 4.5, "button text");
+                QVERIFY2(contrastRatio(c.accentText, c.accent) >= 4.5, "selected tab label");
                 QVERIFY2(contrastRatio(c.error, c.window) >= 4.5, "error text");
+            }
+    }
+
+    // WCAG 2.2 AA: 4.5:1 for text, 3:1 for the outlines and rings that show where things are.
+    void everythingElseMeetsWcagAA()
+    {
+        for (Style s : {Style::Clay, Style::HighContrast})
+            for (bool dark : {false, true}) {
+                const Colors c = colors(s, dark);
+                QVERIFY2(contrastRatio(c.mutedText, c.surface) >= 4.5, "muted text on cards");
+                QVERIFY2(contrastRatio(c.error, c.surface) >= 4.5, "error text on cards");
+                QVERIFY2(contrastRatio(c.accent, c.surface) >= 3.0, "focus ring and today on cards");
+                QVERIFY2(contrastRatio(c.accent, c.window) >= 3.0, "focus ring on the page");
+                QVERIFY2(contrastRatio(c.inputBorder, c.surface) >= 3.0, "text box outline on cards");
+                QVERIFY2(contrastRatio(c.inputBorder, c.window) >= 3.0, "text box outline on the page");
             }
     }
 
@@ -64,4 +80,4 @@ private slots:
 };
 
 QTEST_APPLESS_MAIN(TestTheme)
-#include "tst_theme.moc"
+#include "tst_theme.moc"

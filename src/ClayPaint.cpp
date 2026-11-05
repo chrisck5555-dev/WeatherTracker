@@ -2,10 +2,85 @@
 
 #include <QLinearGradient>
 #include <QPainter>
+#include <QTransform>
+#include <cmath>
 
 #include "ThemeManager.h"
 
 namespace ClayPaint {
+
+namespace {
+constexpr double kPi = 3.14159265358979323846;
+double rad(double degrees) { return degrees * kPi / 180.0; }
+}
+
+// After figma-squircle (MIT): each corner is a cubic curve, a short circular arc, and a
+// cubic curve. Built for the top-right corner with the corner at (0,0), the top edge
+// coming in from the left and the right edge going down, then turned for the others.
+QPainterPath continuousRect(const QRectF &r, double radius, double smoothing)
+{
+    QPainterPath path;
+    const double budget = std::min(r.width(), r.height()) / 2.0;
+    radius = std::min(radius, budget);
+    if (radius <= 0.01) {
+        path.addRect(r);
+        return path;
+    }
+    double p = (1 + smoothing) * radius;
+    if (p > budget) {                                   // not enough room: smooth less
+        smoothing = std::max(0.0, std::min(smoothing, budget / radius - 1));
+        p = std::min(p, budget);
+    }
+    const double arcMeasure = 90 * (1 - smoothing);
+    const double arcLength = std::sin(rad(arcMeasure / 2)) * radius * std::sqrt(2.0);
+    const double alpha = (90 - arcMeasure) / 2;
+    const double p3ToP4 = radius * std::tan(rad(alpha / 2));
+    const double beta = 45 * smoothing;
+    const double c = p3ToP4 * std::cos(rad(beta));
+    const double d = c * std::tan(rad(beta));
+    const double b = (p - arcLength - c - d) / 3;
+    const double a = 2 * b;
+
+    // One corner, local coordinates.
+    QPainterPath corner;
+    const QPointF start(-p, 0);
+    corner.moveTo(start);
+    const QPointF arcStart = start + QPointF(a + b + c, d);
+    corner.cubicTo(start + QPointF(a, 0), start + QPointF(a + b, 0), arcStart);
+    const QPointF centre(-radius, radius);
+    const double startAngle = std::atan2(-(arcStart.y() - centre.y()), arcStart.x() - centre.x())
+                              * 180.0 / kPi;
+    corner.arcTo(QRectF(centre.x() - radius, centre.y() - radius, 2 * radius, 2 * radius),
+                 startAngle, -arcMeasure);
+    const QPointF arcEnd = corner.currentPosition();
+    corner.cubicTo(arcEnd + QPointF(d, c), arcEnd + QPointF(d, b + c), QPointF(0, p));
+
+    // Top right, bottom right, bottom left, top left: turned 0, 90, 180, 270 degrees.
+    const QPointF corners[] = {r.topRight(), r.bottomRight(), r.bottomLeft(), r.topLeft()};
+    for (int i = 0; i < 4; ++i) {
+        QTransform t;
+        t.translate(corners[i].x(), corners[i].y());
+        t.rotate(90 * i);
+        const QPainterPath piece = t.map(corner);
+        if (i == 0)
+            path.addPath(piece);
+        else
+            path.connectPath(piece);                    // a straight edge, then the corner
+    }
+    path.closeSubpath();
+    return path;
+}
+
+QPainterPath shape(const QRectF &r, double radius)
+{
+    const bool clay = !ThemeManager::instance()
+                      || ThemeManager::instance()->style() == Theme::Style::Clay;
+    if (clay)
+        return continuousRect(r, radius);
+    QPainterPath path;
+    path.addRoundedRect(r, radius, radius);
+    return path;
+}
 
 void drawRaised(QPainter &p, const QRectF &r, double radius, const QColor &base, bool sunken)
 {
@@ -22,7 +97,7 @@ void drawRaised(QPainter &p, const QRectF &r, double radius, const QColor &base,
         sh.setAlpha(110);
         p.setPen(Qt::NoPen);
         p.setBrush(sh);
-        p.drawRoundedRect(body.translated(0, 3), radius, radius);
+        p.drawPath(shape(body.translated(0, 3), radius));
     }
 
     QLinearGradient fill(body.topLeft(), body.bottomLeft());
@@ -30,7 +105,7 @@ void drawRaised(QPainter &p, const QRectF &r, double radius, const QColor &base,
     fill.setColorAt(1, base.darker(sunken ? 112 : 104));
     p.setPen(QPen(t.border, 1));
     p.setBrush(fill);
-    p.drawRoundedRect(body, radius, radius);
+    p.drawPath(shape(body, radius));
 
     // Inner edge: bright glint along the top, darker rim along the bottom
     QColor glint = t.highlight;
@@ -48,7 +123,7 @@ void drawRaised(QPainter &p, const QRectF &r, double radius, const QColor &base,
     edge.setColorAt(1.0, rim);
     p.setPen(QPen(QBrush(edge), 2));
     p.setBrush(Qt::NoBrush);
-    p.drawRoundedRect(body.adjusted(1.5, 1.5, -1.5, -1.5), radius - 1.5, radius - 1.5);
+    p.drawPath(shape(body.adjusted(1.5, 1.5, -1.5, -1.5), radius - 1.5));
 
     p.restore();
 }
@@ -67,7 +142,24 @@ void drawCard(QPainter &p, const QRectF &r, double radius, const QColor &fill)
     p.setRenderHint(QPainter::Antialiasing);
     p.setPen(QPen(edge, 1));
     p.setBrush(fill);
-    p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    p.drawPath(shape(r.adjusted(0.5, 0.5, -0.5, -0.5), radius));
+    p.restore();
+}
+
+QPen focusPen()
+{
+    QPen pen(ThemeManager::instance()->colors().text, 2, Qt::DashLine);
+    pen.setCapStyle(Qt::FlatCap);
+    return pen;
+}
+
+void drawFocusRing(QPainter &p, const QRectF &r, double radius, double inset)
+{
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(focusPen());
+    p.setBrush(Qt::NoBrush);
+    p.drawPath(shape(r.adjusted(inset, inset, -inset, -inset), qMax(0.0, radius - inset / 2)));
     p.restore();
 }
 

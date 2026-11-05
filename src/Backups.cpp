@@ -9,7 +9,8 @@ namespace Backups {
 
 namespace {
 
-const QString kDailyPattern = QStringLiteral("weather-????-??-??.db");
+// "\?" is a plain "?": written this way so "??-" is not read as an old C trigraph.
+const QString kDailyPattern = QStringLiteral("weather-?\?\?\?-?\?-?\?.db");   // weather-????-??-??.db
 const QString kSafetyPattern = QStringLiteral("weather-before-restore-*.db");
 
 // Keeps only the newest `keep` files that match `pattern` (the names sort by date).

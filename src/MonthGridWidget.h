@@ -28,6 +28,10 @@ protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    bool event(QEvent *event) override;                 // claims the arrow keys
+    void keyPressEvent(QKeyEvent *event) override;      // arrows move a day, Enter opens it
+    void focusInEvent(QFocusEvent *event) override;
+    void focusOutEvent(QFocusEvent *event) override;
     QSize minimumSizeHint() const override { return QSize(720, 420); }
 
 private:
@@ -36,6 +40,7 @@ private:
     QRectF gridArea() const;                    // the 6x7 cells, excluding header/legend
     QRectF weekButtonRect(int row) const;
     QDate dateAt(const QPointF &pos) const;     // invalid QDate if outside the cells
+    void updateAccessibleText();                // what a screen reader says: the selected day
 
     AppState &m_state;
     Repository &m_repo;

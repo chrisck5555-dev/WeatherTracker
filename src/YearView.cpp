@@ -1,5 +1,6 @@
 #include "YearView.h"
 
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -7,6 +8,7 @@
 #include "AppState.h"
 #include "Artwork.h"
 #include "ClayPaint.h"
+#include "KeyboardNav.h"
 #include "PeriodMath.h"
 #include "Theme.h"
 #include "ThemeManager.h"
@@ -14,8 +16,59 @@
 YearView::YearView(AppState &state, QWidget *parent)
     : QWidget(parent), m_state(state)
 {
-    connect(&m_state, &AppState::currentDateChanged, this, qOverload<>(&QWidget::update));
+    connect(&m_state, &AppState::currentDateChanged, this, [this] {
+        updateAccessibleText();
+        update();
+    });
     connect(&m_state, &AppState::todayChanged, this, qOverload<>(&QWidget::update));
+    setFocusPolicy(Qt::TabFocus);                      // only Tab, not a mouse click
+    setAccessibleDescription("Year. The arrow keys choose a month, Page Up and Page Down "
+                             "change the year, and Enter opens the month.");
+    updateAccessibleText();
+}
+
+void YearView::updateAccessibleText()
+{
+    KeyboardNav::announce(this, m_state.currentDate().toString("MMMM yyyy"));
+}
+
+bool YearView::event(QEvent *event)
+{
+    if (KeyboardNav::claim(event, {Qt::Key_Left, Qt::Key_Right, Qt::Key_Up, Qt::Key_Down,
+                                   Qt::Key_PageUp, Qt::Key_PageDown}))
+        return true;
+    return QWidget::event(event);
+}
+
+void YearView::keyPressEvent(QKeyEvent *event)
+{
+    const QDate d = m_state.currentDate();
+    switch (event->key()) {
+    case Qt::Key_Left:     m_state.setCurrentDate(d.addMonths(-1)); break;
+    case Qt::Key_Right:    m_state.setCurrentDate(d.addMonths(1)); break;
+    case Qt::Key_Up:       m_state.setCurrentDate(d.addMonths(-4)); break;   // 4 tiles a row
+    case Qt::Key_Down:     m_state.setCurrentDate(d.addMonths(4)); break;
+    case Qt::Key_PageUp:   m_state.setCurrentDate(d.addYears(-1)); break;
+    case Qt::Key_PageDown: m_state.setCurrentDate(d.addYears(1)); break;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+    case Qt::Key_Space:    emit monthActivated(d); break;
+    default:               QWidget::keyPressEvent(event); return;
+    }
+    event->accept();
+}
+
+void YearView::focusInEvent(QFocusEvent *event)
+{
+    QWidget::focusInEvent(event);
+    updateAccessibleText();
+    update();
+}
+
+void YearView::focusOutEvent(QFocusEvent *event)
+{
+    QWidget::focusOutEvent(event);
+    update();
 }
 
 QRectF YearView::tileRect(int i) const
@@ -73,9 +126,7 @@ void YearView::paintEvent(QPaintEvent *)
                                                        p.device()->devicePixelRatioF());
             if (!season.isNull()) {
                 p.save();
-                QPainterPath clip;
-                clip.addRoundedRect(art, 16, 16);
-                p.setClipPath(clip);
+                p.setClipPath(ClayPaint::shape(art, 16));
                 p.drawPixmap(art.topLeft(), season);
                 p.restore();
             }
@@ -85,15 +136,17 @@ void YearView::paintEvent(QPaintEvent *)
                 base = base.darker(112);
             p.setPen(pal.color(QPalette::Mid));
             p.setBrush(base);
-            p.drawRoundedRect(r, 8, 8);
+            p.drawPath(ClayPaint::shape(r, 8));
         }
         p.setPen(pal.color(QPalette::Text));
         p.drawText(r, Qt::AlignCenter, QDate(year, i + 1, 1).toString("MMMM"));
         if (year == today.year() && i + 1 == today.month()) {
             p.setPen(QPen(pal.color(QPalette::Highlight), 3));
             p.setBrush(Qt::NoBrush);
-            p.drawRoundedRect(r.adjusted(1.5, 1.5, -1.5, -1.5), clay ? 18 : 8, clay ? 18 : 8);
+            p.drawPath(ClayPaint::shape(r.adjusted(1.5, 1.5, -1.5, -1.5), clay ? 18 : 8));
         }
+        if (hasFocus() && i + 1 == m_state.currentDate().month())
+            ClayPaint::drawFocusRing(p, r, clay ? 18 : 8);
     }
 
     // --- Legend ---
@@ -102,7 +155,7 @@ void YearView::paintEvent(QPaintEvent *)
     p.setFont(lf);
     p.setPen(QPen(pal.color(QPalette::Highlight), 3));
     p.setBrush(Qt::NoBrush);
-    p.drawRoundedRect(QRectF(12, height() - 24, 22, 16), clay ? 6 : 0, clay ? 6 : 0);
+    p.drawPath(ClayPaint::shape(QRectF(12, height() - 24, 22, 16), clay ? 6 : 0));
     p.setPen(pal.color(QPalette::WindowText));
     p.drawText(QRectF(42, height() - 28, 200, 24), Qt::AlignVCenter | Qt::AlignLeft, "Today");
 }

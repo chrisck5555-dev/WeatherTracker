@@ -26,7 +26,8 @@ signals:
     void done();
     void guideRequested();
     void tourRequested();
-    void dataErased();                  // "Erase all my weather data": the views reload
+    // "Erase all my weather data" finished; `safetyCopy` holds the data from just before.
+    void dataErased(const QString &safetyCopy);
 
 private:
     void chooseSize(TextSize::Size size);
@@ -49,4 +50,5 @@ private:
     QPushButton *m_updateButton = nullptr;
     QLabel *m_updateNote = nullptr;
     QCheckBox *m_allowUpdates = nullptr;
+    QCheckBox *m_motion = nullptr;
 };

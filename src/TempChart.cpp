@@ -8,6 +8,7 @@
 #include "ClayPaint.h"
 #include "Format.h"
 #include "ThemeManager.h"
+#include "Typography.h"
 
 namespace {
 
@@ -41,6 +42,8 @@ void TempChart::setData(const ChartMath::TempSeries &series, Period period, Unit
     m_data = series;
     m_period = period;
     m_units = units;
+    setAccessibleName("Temperature chart");
+    setAccessibleDescription(ChartMath::describeTemperatures(series, Units::tempUnit(units)));
     update();                                   // schedule a repaint; never paint directly
 }
 
@@ -52,7 +55,7 @@ void TempChart::paintEvent(QPaintEvent *)
     const auto theme = ThemeManager::instance()->colors();
     ClayPaint::drawCard(p, QRectF(rect()).adjusted(1, 1, -1, -1), 14, pal.color(QPalette::Base));
 
-    QFont f = font();
+    QFont f = tabularDigits(font());
     f.setPointSize(11);
     QFont title = f;
     title.setBold(true);

@@ -15,6 +15,7 @@
 
 #include "AppState.h"
 #include "Artwork.h"
+#include "ClayPaint.h"
 #include "EventTypes.h"
 #include "Format.h"
 #include "Repository.h"
@@ -38,9 +39,7 @@ protected:
             return;
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
-        QPainterPath clip;
-        clip.addRoundedRect(QRectF(rect()), 18, 18);
-        p.setClipPath(clip);
+        p.setClipPath(ClayPaint::shape(QRectF(rect()), 18));
         p.drawPixmap(QPointF(0, 0), picture);
     }
 };
@@ -91,6 +90,7 @@ DayView::DayView(AppState &state, Repository &repo, QWidget *parent)
     m_editButton->setMinimumHeight(52);
 
     m_text = new QTextBrowser;
+    m_text->setAccessibleName("This day's weather, note and events");
     m_text->setFrameShape(QFrame::NoFrame);
     QFont f = font();
     f.setPointSize(14);
@@ -169,6 +169,7 @@ void DayView::refresh()
     const QString bannerName = bannerFor(weather);
     const bool art = Artwork::bannerAvailable(bannerName);
     m_banner->setProperty("bannerName", art ? bannerName : QString());
+    m_banner->setAccessibleName(art ? "Picture of the day's weather" : QString());
     m_banner->setMinimumHeight(art ? 110 : 0);
     m_banner->layout()->setContentsMargins(art ? 24 : 0, 0, 0, 0);
     m_banner->update();

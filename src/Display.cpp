@@ -5,6 +5,16 @@
 #include <QProcess>
 #include <QScreen>
 
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX                                // MinGW often defines it already
+#define NOMINMAX                                // keep std::min/std::max usable
+#endif
+#include <windows.h>
+#ifndef SPI_GETCLIENTAREAANIMATION
+#define SPI_GETCLIENTAREAANIMATION 0x1042       // Windows Vista and newer
+#endif
+#endif
+
 namespace Display {
 
 double currentScaleFactor()
@@ -35,6 +45,16 @@ QList<TextSize::Size> allowedTextSizes()
     return TextSize::fitting(s.width(), s.height());
 }
 
+bool animationsAllowed()
+{
+#ifdef Q_OS_WIN
+    BOOL on = TRUE;
+    if (SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &on, 0))
+        return on != FALSE;
+#endif
+    return true;
+}
+
 bool relaunchWithScale(double factor)
 {
     // A new process inherits our environment, so set the variables first.
@@ -44,4 +64,4 @@ bool relaunchWithScale(double factor)
                                    QCoreApplication::arguments().mid(1));
 }
 
-} // namespace Display
+} // namespace Display

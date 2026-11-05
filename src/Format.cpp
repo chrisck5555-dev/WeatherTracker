@@ -62,4 +62,31 @@ QString precipitation(const QString &type, const std::optional<double> &mm, Unit
     return type.isEmpty() ? amount : type + ", " + amount;
 }
 
+QString describeDay(const QDate &date, const std::optional<WeatherDay> &weather,
+                    bool hasNote, bool hasEvent, Units::System s)
+{
+    QString out = date.toString("dddd, MMMM d, yyyy") + ".";
+    if (weather) {
+        QStringList parts;
+        if (!weather->cloud.isEmpty())
+            parts << weather->cloud;
+        if (weather->precipType == "None")
+            parts << "no precipitation";
+        else if (!weather->precipType.isEmpty())
+            parts << precipitation(weather->precipType, weather->precipMm, s).toLower();
+        if (weather->highC)
+            parts << "high " + temperature(weather->highC, s);
+        if (weather->lowC)
+            parts << "low " + temperature(weather->lowC, s);
+        out += " " + (parts.isEmpty() ? QString("Weather recorded") : parts.join(", ")) + ".";
+    }
+    if (hasNote)
+        out += " Has a note.";
+    if (hasEvent)
+        out += " Has an event.";
+    if (!weather && !hasNote && !hasEvent)
+        out += " Nothing recorded.";
+    return out;
+}
+
 } // namespace Format

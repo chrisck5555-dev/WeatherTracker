@@ -45,7 +45,7 @@ GoToDatePanel::GoToDatePanel(const QDate &start, QWidget *parent)
     m_calendar->setGridVisible(true);
     m_calendar->setFirstDayOfWeek(Qt::Sunday);
     m_calendar->setSelectedDate(start);
-    m_calendar->setMinimumHeight(260);
+    m_calendar->setMinimumHeight(320);              // day cells about 44 px tall
 
     auto *cancel = new QPushButton("Cancel");
     auto *go = new QPushButton("Go to date");

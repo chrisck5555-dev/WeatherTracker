@@ -116,13 +116,22 @@ add_executable(WeatherTracker WIN32
     src/Artwork.h
     src/WeatherIcons.cpp
     src/WeatherIcons.h
+    src/Typography.h
+    src/KeyboardNav.h
     src/Toast.cpp
     src/Toast.h
+    src/CommandPanel.cpp
+    src/CommandPanel.h
+    src/ViewTransition.cpp
+    src/ViewTransition.h
     resources/app-icon/app.rc
     resources/resources.qrc
 )
 
 target_link_libraries(WeatherTracker PRIVATE Qt6::Widgets Qt6::Network WeatherCore)
+if(WIN32)
+    target_link_libraries(WeatherTracker PRIVATE user32)   # Windows' "Animation effects" setting
+endif()
 
 # Tests
 enable_testing()

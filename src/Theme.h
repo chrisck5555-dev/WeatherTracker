@@ -12,6 +12,7 @@ struct Colors {
     QColor window, surface, text, mutedText;    // backgrounds and text
     QColor accent, accentText;                  // buttons, highlights
     QColor border, highlight, shadow;           // edges, raised-top glint, drop shadow
+    QColor inputBorder;                         // outline of text boxes: 3:1 so they can be found
     QColor error;
     QColor high, low, rain, snow;               // chart colors
     QColor markWeather, markNote, markEvent;    // calendar markers

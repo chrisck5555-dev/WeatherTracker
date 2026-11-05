@@ -1,5 +1,6 @@
 #include "MonthGridWidget.h"
 
+#include <QKeyEvent>
 #include <QLocale>
 #include <QMouseEvent>
 #include <QPainter>
@@ -8,12 +9,15 @@
 #include "AppState.h"
 #include "Artwork.h"
 #include "ClayPaint.h"
+#include "Format.h"
+#include "KeyboardNav.h"
 #include "Markers.h"
 #include "PeriodMath.h"
 #include "Repository.h"
 #include "Theme.h"
 #include "ThemeManager.h"
 #include "WeatherIcons.h"
+#include "Typography.h"
 
 namespace {
 constexpr int kHeaderHeight = 40;    // weekday names
@@ -28,6 +32,11 @@ MonthGridWidget::MonthGridWidget(AppState &state, Repository &repo, QWidget *par
 {
     connect(&m_state, &AppState::currentDateChanged, this, &MonthGridWidget::onDateChanged);
     connect(&m_state, &AppState::todayChanged, this, qOverload<>(&QWidget::update));
+    // Only Tab gives it the keyboard: after a mouse click, Left/Right still mean
+    // "previous/next month", as the help text says.
+    setFocusPolicy(Qt::TabFocus);
+    setAccessibleDescription("Month calendar. The arrow keys move one day, Page Up and "
+                             "Page Down move one month, and Enter opens the day.");
     reloadData();
 }
 
@@ -46,6 +55,7 @@ void MonthGridWidget::reloadData()
     m_weather = m_repo.weatherInRange(m_loadedStart, end);   // 3 queries, not 42 x 3
     m_noteDates = m_repo.datesWithNotes(m_loadedStart, end);
     m_eventDates = m_repo.datesWithEvents(m_loadedStart, end);
+    updateAccessibleText();
     update();
 }
 
@@ -53,7 +63,59 @@ void MonthGridWidget::onDateChanged()
 {
     if (gridStart() != m_loadedStart)          // same month: reuse the cached markers
         reloadData();
+    updateAccessibleText();
     update();                                  // the month shown may have changed
+}
+
+void MonthGridWidget::updateAccessibleText()
+{
+    const QDate d = m_state.currentDate();
+    const auto it = m_weather.constFind(d);
+    KeyboardNav::announce(this, Format::describeDay(
+        d, it == m_weather.constEnd() ? std::nullopt : std::optional<WeatherDay>(*it),
+        m_noteDates.contains(d), m_eventDates.contains(d),
+        Units::fromSetting(m_repo.setting("units", "metric"))));
+}
+
+// ---------------- Keyboard ----------------
+
+bool MonthGridWidget::event(QEvent *event)
+{
+    if (KeyboardNav::claim(event, {Qt::Key_Left, Qt::Key_Right, Qt::Key_Up, Qt::Key_Down,
+                                   Qt::Key_PageUp, Qt::Key_PageDown}))
+        return true;
+    return QWidget::event(event);
+}
+
+void MonthGridWidget::keyPressEvent(QKeyEvent *event)
+{
+    const QDate d = m_state.currentDate();
+    switch (event->key()) {
+    case Qt::Key_Left:     m_state.setCurrentDate(d.addDays(-1)); break;
+    case Qt::Key_Right:    m_state.setCurrentDate(d.addDays(1)); break;
+    case Qt::Key_Up:       m_state.setCurrentDate(d.addDays(-7)); break;
+    case Qt::Key_Down:     m_state.setCurrentDate(d.addDays(7)); break;
+    case Qt::Key_PageUp:   m_state.setCurrentDate(d.addMonths(-1)); break;
+    case Qt::Key_PageDown: m_state.setCurrentDate(d.addMonths(1)); break;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+    case Qt::Key_Space:    emit dayActivated(d); break;
+    default:               QWidget::keyPressEvent(event); return;
+    }
+    event->accept();
+}
+
+void MonthGridWidget::focusInEvent(QFocusEvent *event)
+{
+    QWidget::focusInEvent(event);
+    updateAccessibleText();
+    update();                                  // show the focus ring
+}
+
+void MonthGridWidget::focusOutEvent(QFocusEvent *event)
+{
+    QWidget::focusOutEvent(event);
+    update();
 }
 
 // ---------------- Geometry (shared by painting and clicking) ----------------
@@ -159,7 +221,7 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
     }
 
     // --- The 42 cells ---
-    QFont dayFont = font();
+    QFont dayFont = tabularDigits(font());
     dayFont.setPointSize(14);
     QFont legendFont = font();
     legendFont.setPointSize(11);
@@ -179,14 +241,14 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
                 sh.setAlpha(90);
                 p.setPen(Qt::NoPen);
                 p.setBrush(sh);
-                p.drawRoundedRect(cell.translated(0, 3), radius, radius);
+                p.drawPath(ClayPaint::shape(cell.translated(0, 3), radius));
             }
             QColor base = inMonth ? pal.color(QPalette::Base) : pal.color(QPalette::Window);
             if (down)
                 base = base.darker(112);
             p.setPen(QPen(pal.color(QPalette::Mid), 1));
             p.setBrush(base);
-            p.drawRoundedRect(cell, radius, radius);
+            p.drawPath(ClayPaint::shape(cell, radius));
 
             p.setPen(pal.color(inMonth ? QPalette::Active : QPalette::Disabled, QPalette::Text));
             p.drawText(cell.adjusted(8, 6, -8, 0), Qt::AlignTop | Qt::AlignLeft,
@@ -221,7 +283,7 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
         } else {
             p.setPen(QPen(pal.color(QPalette::Mid), 1));
             p.setBrush(down ? pal.color(QPalette::Mid) : pal.color(QPalette::Button));
-            p.drawRoundedRect(r, 4, 4);
+            p.drawPath(ClayPaint::shape(r, 4));
         }
         p.setPen(pal.color(QPalette::ButtonText));
         p.drawText(r.translated(0, down ? 2 : 0), Qt::AlignCenter, "Open week");
@@ -236,8 +298,13 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
             cell.translate(0, 2);
         p.setPen(QPen(pal.color(QPalette::Highlight), 3));
         p.setBrush(Qt::NoBrush);
-        p.drawRoundedRect(cell.adjusted(1.5, 1.5, -1.5, -1.5), radius, radius);
+        p.drawPath(ClayPaint::shape(cell.adjusted(1.5, 1.5, -1.5, -1.5), radius));
     }
+
+    // --- Keyboard focus: the selected day ---
+    const qint64 focusIndex = start.daysTo(current);
+    if (hasFocus() && focusIndex >= 0 && focusIndex < 42)
+        ClayPaint::drawFocusRing(p, cellRect(int(focusIndex / 7), int(focusIndex % 7)), radius);
 
     // --- Legend ---
     p.setFont(legendFont);
@@ -256,7 +323,7 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
 
     p.setPen(QPen(pal.color(QPalette::Highlight), 3));
     p.setBrush(Qt::NoBrush);
-    p.drawRoundedRect(QRectF(x, ly - 9, 22, 18), clay ? 6 : 0, clay ? 6 : 0);
+    p.drawPath(ClayPaint::shape(QRectF(x, ly - 9, 22, 18), clay ? 6 : 0));
     p.setPen(pal.color(QPalette::WindowText));
     p.drawText(QRectF(x + 32, ly - 14, 300, 28), Qt::AlignVCenter | Qt::AlignLeft, "Today");
 }

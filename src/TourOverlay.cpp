@@ -51,22 +51,15 @@ protected:
         ClayPaint::drawCard(p, r, 18, palette().color(QPalette::Base));
         p.setPen(QPen(ThemeManager::instance()->colors().accent, 3));
         p.setBrush(Qt::NoBrush);
-        p.drawRoundedRect(r, 18, 18);
+        p.drawPath(ClayPaint::shape(r, 18));
     }
 };
 
 // A rectangle with rounded corners, as a region (the overlay's mask).
 QRegion roundedRegion(const QRect &r, int radius)
 {
-    radius = qMin(radius, qMin(r.width(), r.height()) / 2);
-    const int d = 2 * radius;
-    QRegion region(r.adjusted(radius, 0, -radius, 0));
-    region += QRegion(r.adjusted(0, radius, 0, -radius));
-    region += QRegion(QRect(r.left(), r.top(), d, d), QRegion::Ellipse);
-    region += QRegion(QRect(r.right() - d + 1, r.top(), d, d), QRegion::Ellipse);
-    region += QRegion(QRect(r.left(), r.bottom() - d + 1, d, d), QRegion::Ellipse);
-    region += QRegion(QRect(r.right() - d + 1, r.bottom() - d + 1, d, d), QRegion::Ellipse);
-    return region;
+    // The same shape as the ring drawn around it, so they always match.
+    return QRegion(ClayPaint::shape(QRectF(r), radius).toFillPolygon().toPolygon());
 }
 
 int overlap(const QRect &a, const QRect &b)
@@ -439,7 +432,7 @@ void TourOverlay::paintEvent(QPaintEvent *)
     p.setPen(QPen(ThemeManager::instance()->colors().accent, 4));
     p.setBrush(Qt::NoBrush);
     for (const QRect &h : m_holes)
-        p.drawRoundedRect(QRectF(h).adjusted(-2, -2, 2, 2), kHoleRadius + 2, kHoleRadius + 2);
+        p.drawPath(ClayPaint::shape(QRectF(h).adjusted(-2, -2, 2, 2), kHoleRadius + 2));
 }
 
 void TourOverlay::mousePressEvent(QMouseEvent *event) { event->accept(); }
