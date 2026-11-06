@@ -206,3 +206,15 @@ target_link_libraries(bench_cells PRIVATE Qt6::Widgets)
 
 add_executable(make_demo_data tools/make_demo_data.cpp)
 target_link_libraries(make_demo_data PRIVATE WeatherCore)
+
+# Measuring program for the 1.2.0 plan (Stage 4, step 5): times drawing, glass and motion
+# on this PC. Never shipped, and only built when asked for:
+#   cmake --build build-release --target wt_measure
+# Run 1: .\build-release\wt_measure.exe   Run 2 (frame timing): add --timing
+get_target_property(WT_APP_SOURCES WeatherTracker SOURCES)
+list(REMOVE_ITEM WT_APP_SOURCES src/main.cpp resources/app-icon/app.rc)
+add_executable(wt_measure EXCLUDE_FROM_ALL tools/wt_measure.cpp ${WT_APP_SOURCES})
+target_link_libraries(wt_measure PRIVATE Qt6::Widgets Qt6::Network Qt6::Test WeatherCore)
+if(WIN32)
+    target_link_libraries(wt_measure PRIVATE user32 dwmapi dxgi)   # screen-refresh tests
+endif()
