@@ -3,7 +3,6 @@
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QProcess>
-#include <QScreen>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX                                // MinGW often defines it already
@@ -26,25 +25,6 @@ double currentScaleFactor()
 
 bool wasRelaunched() { return qEnvironmentVariableIsSet("WT_RELAUNCHED"); }
 
-QSize unscaledAvailableSize()
-{
-    const QScreen *screen = QGuiApplication::primaryScreen();
-    if (!screen)
-        return QSize(TextSize::kMinWidth, TextSize::kMinHeight);
-    // Under a scale factor Qt reports a smaller logical screen. Multiplying the
-    // factor back in gives the size we'd see at 1.0, so the answer doesn't depend
-    // on which size we happen to be running at.
-    const QSize a = screen->availableGeometry().size();
-    const double f = currentScaleFactor();
-    return QSize(qRound(a.width() * f), qRound(a.height() * f));
-}
-
-QList<TextSize::Size> allowedTextSizes()
-{
-    const QSize s = unscaledAvailableSize();
-    return TextSize::fitting(s.width(), s.height());
-}
-
 bool animationsAllowed()
 {
 #ifdef Q_OS_WIN
@@ -64,4 +44,4 @@ bool relaunchWithScale(double factor)
                                    QCoreApplication::arguments().mid(1));
 }
 
-} // namespace Display
+} // namespace Display

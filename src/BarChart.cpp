@@ -39,10 +39,10 @@ void BarChart::paintEvent(QPaintEvent *)
     ClayPaint::drawCard(p, QRectF(rect()).adjusted(1, 1, -1, -1), 14, pal.color(QPalette::Base));
 
     QFont f = tabularDigits(font());
-    f.setPointSize(10);
+    f = textFont(Design::TextStyle::Caption, f);
     QFont title = f;
-    title.setBold(true);
-    title.setPointSize(12);
+    title = semibold(title);
+    title = textFont(Design::TextStyle::Body, title);
     const QFontMetrics fm(f);
 
     p.setPen(pal.color(QPalette::WindowText));
@@ -100,4 +100,4 @@ void BarChart::paintEvent(QPaintEvent *)
         p.drawText(QRectF(x - 24, plot.bottom() + 5, 48, 20), Qt::AlignHCenter | Qt::AlignTop,
                    m_data.labels[i]);
     }
-}
+}

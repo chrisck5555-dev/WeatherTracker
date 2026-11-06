@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)   # compiles resources/resources.qrc (the images) into the program
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Sql Network Test)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Sql Network Test Svg)
 
 # Core: GUI-free logic shared by the app and the tests
 add_library(WeatherCore STATIC
@@ -45,6 +45,9 @@ add_library(WeatherCore STATIC
     src/Backups.h
     src/UpdateCheck.cpp
     src/UpdateCheck.h
+    src/Design.h
+    src/Responsive.cpp
+    src/Responsive.h
 )
 target_include_directories(WeatherCore PUBLIC src)
 target_link_libraries(WeatherCore PUBLIC Qt6::Core Qt6::Gui Qt6::Sql)
@@ -117,6 +120,12 @@ add_executable(WeatherTracker WIN32
     src/WeatherIcons.cpp
     src/WeatherIcons.h
     src/Typography.h
+    src/Icons.cpp
+    src/Icons.h
+    src/Motion.cpp
+    src/Motion.h
+    src/HoverFade.cpp
+    src/HoverFade.h
     src/KeyboardNav.h
     src/Toast.cpp
     src/Toast.h
@@ -126,9 +135,10 @@ add_executable(WeatherTracker WIN32
     src/ViewTransition.h
     resources/app-icon/app.rc
     resources/resources.qrc
+    resources/icons.qrc
 )
 
-target_link_libraries(WeatherTracker PRIVATE Qt6::Widgets Qt6::Network WeatherCore)
+target_link_libraries(WeatherTracker PRIVATE Qt6::Widgets Qt6::Network Qt6::Svg WeatherCore)
 if(WIN32)
     target_link_libraries(WeatherTracker PRIVATE user32)   # Windows' "Animation effects" setting
 endif()
@@ -199,6 +209,10 @@ add_executable(tst_filecheck tests/tst_filecheck.cpp)
 target_link_libraries(tst_filecheck PRIVATE WeatherCore Qt6::Test)
 add_test(NAME filecheck COMMAND tst_filecheck)
 
+add_executable(tst_design tests/tst_design.cpp)
+target_link_libraries(tst_design PRIVATE WeatherCore Qt6::Test)
+add_test(NAME design COMMAND tst_design)
+
 
 # Tools
 add_executable(bench_cells tools/bench_cells.cpp)
@@ -208,13 +222,15 @@ add_executable(make_demo_data tools/make_demo_data.cpp)
 target_link_libraries(make_demo_data PRIVATE WeatherCore)
 
 # Measuring program for the 1.2.0 plan (Stage 4, step 5): times drawing, glass and motion
-# on this PC. Never shipped, and only built when asked for:
+# on this PC, and checks every screen's layout against the design rules. Never shipped,
+# and only built when asked for:
 #   cmake --build build-release --target wt_measure
 # Run 1: .\build-release\wt_measure.exe   Run 2 (frame timing): add --timing
+# Layout check: .\build-release\wt_measure.exe --layout
 get_target_property(WT_APP_SOURCES WeatherTracker SOURCES)
 list(REMOVE_ITEM WT_APP_SOURCES src/main.cpp resources/app-icon/app.rc)
-add_executable(wt_measure EXCLUDE_FROM_ALL tools/wt_measure.cpp ${WT_APP_SOURCES})
-target_link_libraries(wt_measure PRIVATE Qt6::Widgets Qt6::Network Qt6::Test WeatherCore)
+add_executable(wt_measure EXCLUDE_FROM_ALL tools/wt_measure.cpp tools/layout_check.cpp ${WT_APP_SOURCES})
+target_link_libraries(wt_measure PRIVATE Qt6::Widgets Qt6::Network Qt6::Test Qt6::Svg WeatherCore)
 if(WIN32)
     target_link_libraries(wt_measure PRIVATE user32 dwmapi dxgi)   # screen-refresh tests
 endif()

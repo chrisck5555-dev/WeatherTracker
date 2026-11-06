@@ -5,6 +5,7 @@
 #include <QTransform>
 #include <cmath>
 
+#include "Design.h"
 #include "ThemeManager.h"
 
 namespace ClayPaint {
@@ -146,21 +147,45 @@ void drawCard(QPainter &p, const QRectF &r, double radius, const QColor &fill)
     p.restore();
 }
 
-QPen focusPen()
+double controlRadius() { return contrastLook() ? Design::kRadiusContrast : Design::kRadiusControl; }
+double cardRadius() { return contrastLook() ? Design::kRadiusContrast : Design::kRadiusCard; }
+
+bool contrastLook()
 {
-    QPen pen(ThemeManager::instance()->colors().text, 2, Qt::DashLine);
-    pen.setCapStyle(Qt::FlatCap);
-    return pen;
+    return ThemeManager::instance()
+        && ThemeManager::instance()->style() == Theme::Style::HighContrast;
 }
 
-void drawFocusRing(QPainter &p, const QRectF &r, double radius, double inset)
+int outlineWidth() { return contrastLook() ? Design::kOutlineContrast : Design::kOutline; }
+
+void drawOverlay(QPainter &p, const QRectF &r, double radius, const QColor &overlay)
 {
+    if (overlay.alpha() == 0)
+        return;
     p.save();
     p.setRenderHint(QPainter::Antialiasing);
-    p.setPen(focusPen());
-    p.setBrush(Qt::NoBrush);
-    p.drawPath(shape(r.adjusted(inset, inset, -inset, -inset), qMax(0.0, radius - inset / 2)));
+    p.setPen(Qt::NoPen);
+    p.setBrush(overlay);
+    p.drawPath(shape(r, radius));
     p.restore();
+}
+
+void drawHover(QPainter &p, const QRectF &r, double radius, double amount)
+{
+    const auto *themes = ThemeManager::instance();
+    if (!themes || amount <= 0.001)
+        return;
+    QColor h = Theme::hoverOverlay(themes->colors());
+    h.setAlphaF(float(h.alphaF() * qMin(amount, 1.0)));
+    drawOverlay(p, r, radius, h);
+}
+
+void drawFocusTint(QPainter &p, const QRectF &r, double radius, bool onAccent)
+{
+    const auto *themes = ThemeManager::instance();
+    if (!themes)
+        return;
+    drawOverlay(p, r, radius, Theme::focusOverlay(themes->style(), themes->colors(), onAccent));
 }
 
 } // namespace ClayPaint

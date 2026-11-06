@@ -1,4 +1,5 @@
 #include "GuideDialog.h"
+#include "Typography.h"
 
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -12,7 +13,7 @@ GuideDialog::GuideDialog(QWidget *parent)
     resize(820, 660);
 
     QFont f = font();
-    f.setPointSize(13);
+    f = textFont(Design::TextStyle::Body, f);
     setFont(f);
 
     auto *text = new QTextBrowser;

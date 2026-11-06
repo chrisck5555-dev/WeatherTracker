@@ -15,6 +15,7 @@
 #include "ClayPaint.h"
 #include "PanelHost.h"
 #include "ThemeManager.h"
+#include "Typography.h"
 
 namespace {
 
@@ -145,19 +146,18 @@ void TourOverlay::buildCard()
 
     m_counter = new QLabel;
     QFont small = base;
-    small.setPointSize(11);
+    small = textFont(Design::TextStyle::Caption, small);
     m_counter->setFont(small);
     m_counter->setStyleSheet(QString("color: %1;").arg(colors.mutedText.name()));
 
     m_title = new QLabel;
     QFont big = base;
-    big.setPointSize(16);
-    big.setBold(true);
-    m_title->setFont(big);
+    big = textFont(Design::TextStyle::Heading, big);
+        m_title->setFont(big);
     m_title->setWordWrap(true);
 
     QFont normal = base;
-    normal.setPointSize(12);
+    normal = textFont(Design::TextStyle::Body, normal);
     m_text = new QLabel;
     m_text->setFont(normal);
     m_text->setWordWrap(true);
@@ -238,7 +238,7 @@ void TourOverlay::showStep(int index)
     }
     m_checkLabels.clear();
     QFont f = m_card->font();
-    f.setPointSize(12);
+    f = textFont(Design::TextStyle::Body, f);
     for (int i = 0; i < s.items.size(); ++i) {
         auto *label = new QLabel;
         label->setFont(f);

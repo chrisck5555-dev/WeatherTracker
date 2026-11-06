@@ -3,6 +3,7 @@
 //
 // Run from the project folder:   .\build-release\wt_measure.exe
 //   (add --timing for run 2: only the frame-timing comparison, into measure-timing-<Hz>hz.txt)
+//   (or --layout for the layout check: layout_check.cpp, into layout-check.txt)
 // It opens a test window a few times (about two minutes; don't touch the mouse) and writes
 // build-release\measure-results.txt. It uses a throwaway data file, never the real one, and
 // makes no backups.
@@ -53,6 +54,8 @@
 #include <dwmapi.h>
 #include <dxgi.h>
 #endif
+
+int runLayoutCheck(const QStringList &args);   // layout_check.cpp: --layout
 
 namespace {
 
@@ -511,6 +514,8 @@ int main(int argc, char *argv[])
     const bool child = argc >= 5 && QString(argv[1]) == "--run";
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("WeatherTrackerMeasure");
+    if (QCoreApplication::arguments().contains("--layout"))
+        return runLayoutCheck(QCoreApplication::arguments());   // layout_check.cpp
 
     if (child)
         return runOne(QString::fromLocal8Bit(argv[2]), QString(argv[3]).toInt(), QString(argv[4]).toInt(), app);

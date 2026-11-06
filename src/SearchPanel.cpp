@@ -11,6 +11,7 @@
 
 #include "EventTypes.h"
 #include "Repository.h"
+#include "Typography.h"
 
 namespace {
 
@@ -39,13 +40,13 @@ SearchPanel::SearchPanel(Repository &repo, QWidget *parent)
     : QWidget(parent), m_repo(repo)
 {
     QFont f = font();
-    f.setPointSize(13);
+    f = textFont(Design::TextStyle::Body, f);
     setFont(f);
 
     auto *title = new QLabel("Search notes and events");
     QFont tf = font();
-    tf.setPointSize(17);
-    tf.setBold(true);
+    tf = textFont(Design::TextStyle::Body, tf);
+    tf = semibold(tf);
     title->setFont(tf);
 
     auto *prompt = new QLabel("Type a word or phrase from a note, or the name of an event:");

@@ -53,6 +53,9 @@
 #include "Version.h"
 #include "WeekView.h"
 #include "YearView.h"
+#include "Icons.h"
+#include "Motion.h"
+#include "Typography.h"
 
 namespace {
 
@@ -203,11 +206,11 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     , m_state(new AppState(this))
 {
     setWindowTitle(QString("Weather Tracker %1").arg(APP_VERSION));
-    resize(1000, 650);
+    resize(Design::kCheckedWindowWidth, Design::kCheckedWindowHeight);
 
     // --- Title row: Settings and Help (top-right) ---
     auto *title = new QLabel("Weather Tracker");
-    title->setStyleSheet("font-size: 20pt; font-weight: bold;");
+    title->setStyleSheet(textStyleSheet(Design::TextStyle::Heading));
 
     m_settingsButton = new QPushButton("Settings");
     m_settingsButton->setMinimumHeight(44);
@@ -239,9 +242,8 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     m_todayButton = new QPushButton;
     m_dateLabel = new QLabel;
     m_dateLabel->setAlignment(Qt::AlignCenter);
-    m_dateLabel->setStyleSheet("font-size: 14pt;");
+    m_dateLabel->setStyleSheet(textStyleSheet(Design::TextStyle::Heading));
     for (auto *b : {m_prevButton, m_nextButton, m_todayButton}) {
-        b->setMinimumHeight(48);
         QSizePolicy keep = b->sizePolicy();
         keep.setRetainSizeWhenHidden(true);   // hidden ("All time") buttons still hold their space
         b->setSizePolicy(keep);
@@ -263,9 +265,19 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     m_helpButton->setToolTip("Show or hide the tips under the title. "
                              "Press F1 for the user guide, or Ctrl+K for every command.");
 
+    // Fluent icons beside every label (I3, K9). "Next" carries its arrow after the text.
+    m_searchButton->setIcon(Icons::icon("search"));
+    m_goToDateButton->setIcon(Icons::icon("calendar_arrow_right"));
+    m_settingsButton->setIcon(Icons::icon("settings"));
+    m_helpButton->setIcon(Icons::icon("question_circle"));
+    m_prevButton->setIcon(Icons::icon("chevron_left"));
+    m_nextButton->setIcon(Icons::icon("chevron_right"));
+    m_nextButton->setProperty("wtIconAfter", true);
+    m_todayButton->setIcon(Icons::icon("calendar_today"));
+
     // Created ONCE here; refresh functions only update them.
     m_backButton = new QPushButton;
-    m_backButton->setMinimumHeight(48);
+    m_backButton->setIcon(Icons::icon("arrow_left"));
     m_backButton->hide();
 
     m_addTodayButton = new QPushButton;
@@ -597,7 +609,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
 
     refreshNav();
     refreshHelp();
-    resize(1000, 650);                        // set again now that all pages exist
+    resize(Design::kCheckedWindowWidth, Design::kCheckedWindowHeight);                        // set again now that all pages exist
 
     // Remember the window: its size and place, and the tab she was on.
     const QByteArray geometry = QByteArray::fromBase64(m_repo.setting("window_geometry").toLatin1());
@@ -884,8 +896,8 @@ void MainWindow::refreshNav()
     const QDate today = m_state->today();
 
     m_dateLabel->setText(PeriodMath::title(date, p));
-    m_prevButton->setText("\u25C0 Previous " + unitWord(p));
-    m_nextButton->setText("Next " + unitWord(p) + " \u25B6");
+    m_prevButton->setText("Previous " + unitWord(p));
+    m_nextButton->setText("Next " + unitWord(p));
     m_todayButton->setText(goToText(p));
 
     // All three buttons get the same fixed width: the widest any of them needs, for any
@@ -896,8 +908,8 @@ void MainWindow::refreshNav()
     const QString keepNext = m_nextButton->text();
     const QString keepToday = m_todayButton->text();
     for (Period q : {Period::Day, Period::Week, Period::Month, Period::Season, Period::Year}) {
-        m_prevButton->setText("\u25C0 Previous " + unitWord(q));
-        m_nextButton->setText("Next " + unitWord(q) + " \u25B6");
+        m_prevButton->setText("Previous " + unitWord(q));
+        m_nextButton->setText("Next " + unitWord(q));
         m_todayButton->setText(goToText(q));
         for (auto *b : {m_prevButton, m_nextButton, m_todayButton})
             widest = qMax(widest, b->sizeHint().width());
@@ -931,7 +943,7 @@ void MainWindow::refreshNav()
     const auto back = m_state->backTarget();
     m_backButton->setVisible(back.has_value() && activeTab() == Tab::Calendar && !m_editing);
     if (back)
-        m_backButton->setText("\u2190 Back to " + PeriodMath::title(back->date, back->period));
+        m_backButton->setText("Back to " + PeriodMath::title(back->date, back->period));
 
     refreshAddToday();
 }
@@ -947,58 +959,30 @@ void MainWindow::refreshAddToday()
     m_addTodayButton->setVisible(show);
     if (!show)
         return;
-    m_addTodayButton->setFixedHeight(m_tabs->tabBar()->sizeHint().height());   // same height as the tabs
+    m_addTodayButton->setFixedHeight(Design::kTarget);
 
     const bool recorded = m_repo.weatherFor(today).has_value()
         || !m_repo.note(today).trimmed().isEmpty()
         || !m_repo.events(today).isEmpty();
 
-    const auto c = ThemeManager::instance()->colors();
-    const bool contrast = ThemeManager::instance()->style() == Theme::Style::HighContrast;
+    // The main daily action: always the primary button (B1, B2), with its own icon (I3).
+    const QString addText = QStringLiteral("Add today's weather");
+    const QString editText = QStringLiteral("Edit today's weather");
+    m_addTodayButton->setProperty("wtKind", "primary");
+    m_addTodayButton->setText(recorded ? editText : addText);
+    m_addTodayButton->setIcon(Icons::icon(recorded ? "calendar_edit" : "calendar_add"));
 
-    m_addTodayButton->setText(recorded ? "Edit today's weather \u2713"
-                                       : "Add today's weather");
-
-    // Same width whichever text is showing; measured on the real button. Text stays centered.
-    {
-        const QString keep = m_addTodayButton->text();
-        m_addTodayButton->setFixedWidth(QWIDGETSIZE_MAX);          // release before measuring
-        int addWidest = 0;
-        for (const QString &t : {QString("Add today's weather"),
-                                 QString("Edit today's weather \u2713")}) {
-            m_addTodayButton->setText(t);
-            addWidest = qMax(addWidest, m_addTodayButton->sizeHint().width());
-        }
-        m_addTodayButton->setText(keep);
-        m_addTodayButton->setFixedWidth(addWidest + 24);   // slack: the bold style is applied after this
+    // Same width whichever text is showing, so the buttons beside it don't move.
+    const QString keep = m_addTodayButton->text();
+    m_addTodayButton->setFixedWidth(QWIDGETSIZE_MAX);              // release before measuring
+    int widest = 0;
+    for (const QString &t : {addText, editText}) {
+        m_addTodayButton->setText(t);
+        widest = qMax(widest, m_addTodayButton->sizeHint().width());
     }
-
-    // Applying a stylesheet is slow, so only do it when the look actually changes.
-    const QString key = QString("%1|%2|%3|%4")
-                            .arg(contrast).arg(recorded)
-                            .arg(c.accent.name(), c.accentText.name());
-    if (m_addTodayButton->property("lookKey").toString() == key)
-        return;
-    m_addTodayButton->setProperty("lookKey", key);
-
-    m_addTodayButton->setCheckable(false);          // a plain button in both styles
-    if (contrast) {
-        m_addTodayButton->setProperty("accentFill", false);
-        if (recorded)
-            m_addTodayButton->setStyleSheet(QString(
-                "border: 3px solid %1; color: %1; background: transparent; "
-                "border-radius: 4px;").arg(c.accent.name()));
-        else
-            m_addTodayButton->setStyleSheet(QString(
-                "font-weight: bold; color: %1; background: %2; "
-                "border: 3px solid %2; border-radius: 4px;")
-                .arg(c.accentText.name(), c.accent.name()));
-    } else {
-        // Clay: no background or border in the stylesheet, so ClayStyle paints it.
-        m_addTodayButton->setStyleSheet("font-weight: bold;");
-        m_addTodayButton->setProperty("accentFill", !recorded);   // blue when nothing recorded
-        m_addTodayButton->update();
-    }
+    m_addTodayButton->setText(keep);
+    m_addTodayButton->setFixedWidth(widest);
+    m_addTodayButton->update();
 }
 
 void MainWindow::refreshHelp()
@@ -1097,6 +1081,7 @@ QWidget *MainWindow::contentArea() const
 
 void MainWindow::refreshMotion()
 {
+    Motion::setUserEnabled(m_repo.setting("motion", "on") != "off");   // M19
     m_transition->setEnabled(Display::kViewAnimationsInThisVersion
                              && m_repo.setting("motion", "on") != "off"
                              && Display::animationsAllowed());

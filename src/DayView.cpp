@@ -21,6 +21,7 @@
 #include "Repository.h"
 #include "Units.h"
 #include "WeatherIcons.h"
+#include "Typography.h"
 
 namespace {
 
@@ -93,14 +94,14 @@ DayView::DayView(AppState &state, Repository &repo, QWidget *parent)
     m_text->setAccessibleName("This day's weather, note and events");
     m_text->setFrameShape(QFrame::NoFrame);
     QFont f = font();
-    f.setPointSize(14);
+    f = textFont(Design::TextStyle::Body, f);
     m_text->setFont(f);
 
     // Shown instead of the text when the day is empty: message, then the button under it.
     m_empty = new QWidget;
     auto *emptyText = new QLabel("Nothing recorded for this day yet.");
     QFont ef = font();
-    ef.setPointSize(14);
+    ef = textFont(Design::TextStyle::Body, ef);
     emptyText->setFont(ef);
     emptyText->setWordWrap(true);
     auto *emptyAdd = new QPushButton("Add this day's weather");
@@ -239,4 +240,4 @@ void DayView::refresh()
 
     m_text->setHtml(html);
     m_text->verticalScrollBar()->setValue(0);        // always start at the top
-}
+}

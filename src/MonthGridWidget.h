@@ -8,6 +8,7 @@
 #include "WeatherDay.h"
 
 class AppState;
+class HoverFade;
 class Repository;
 
 // Draws the whole month grid itself: no child widgets, one paintEvent.
@@ -40,6 +41,7 @@ private:
     QRectF gridArea() const;                    // the 6x7 cells, excluding header/legend
     QRectF weekButtonRect(int row) const;
     QDate dateAt(const QPointF &pos) const;     // invalid QDate if outside the cells
+    int hoverItemAt(const QPointF &pos) const;  // 0..41 for days, 100 + row for "Open week"
     void updateAccessibleText();                // what a screen reader says: the selected day
 
     AppState &m_state;
@@ -50,4 +52,5 @@ private:
     QSet<QDate> m_eventDates;
     int m_pressWeek = -1;                       // "Open week" row being pressed
     QDate m_pressDate;                          // day cell being pressed
-};
+    HoverFade *m_hover = nullptr;               // ST2's tint under the mouse
+};

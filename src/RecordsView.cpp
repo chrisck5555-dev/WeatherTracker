@@ -76,9 +76,9 @@ void RecordsView::paintEvent(QPaintEvent *)
     const QPalette pal = palette();     // no fill: the window behind paints the background
 
     QFont normal = tabularDigits(font());
-    normal.setPointSize(14);
+    normal = textFont(Design::TextStyle::Body, normal);
     QFont bold = normal;
-    bold.setBold(true);
+    bold = semibold(bold);
 
     const int w = width() - 2 * kMargin;
     if (m_rows.isEmpty()) {

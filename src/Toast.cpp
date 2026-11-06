@@ -8,6 +8,7 @@
 
 #include "ClayPaint.h"
 #include "ThemeManager.h"
+#include "Typography.h"
 
 Toast::Toast(QWidget *window)
     : QWidget(window)
@@ -17,7 +18,7 @@ Toast::Toast(QWidget *window)
     m_text->setWordWrap(true);
     m_text->setTextFormat(Qt::PlainText);
     QFont f = font();
-    f.setPointSize(13);
+    f = textFont(Design::TextStyle::Body, f);
     m_text->setFont(f);
 
     m_undo = new QPushButton("Undo");

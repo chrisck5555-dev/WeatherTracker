@@ -4,6 +4,7 @@
 #include <QWidget>
 
 class AppState;
+class HoverFade;
 
 // Twelve painted month tiles (4 x 3). Clicking one opens that month.
 class YearView : public QWidget
@@ -32,4 +33,5 @@ private:
 
     AppState &m_state;
     int m_pressed = -1;                   // tile being pressed
-};
+    HoverFade *m_hover = nullptr;         // ST2's tint under the mouse
+};

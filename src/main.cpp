@@ -7,9 +7,11 @@
 #include "CrashGuard.h"
 #include "Display.h"
 #include "MainWindow.h"
+#include "Motion.h"
 #include "Repository.h"
 #include "TextSize.h"
 #include "ThemeManager.h"
+#include "Typography.h"
 
 static int runApp(int argc, char *argv[])
 {
@@ -34,18 +36,25 @@ static int runApp(int argc, char *argv[])
         return 1;
     }
 
-    // Text size: the saved choice, or the largest one that still fits this screen.
-    const auto saved = TextSize::fromSetting(repo.setting("text_size", "normal"));
-    const auto size = TextSize::effective(saved, Display::allowedTextSizes());
+    // Text size (Z4): the saved choice. Every size is offered on every screen.
+    const auto size = TextSize::fromSetting(repo.setting("text_size", "normal"));
     const double wanted = TextSize::factor(size);
     if (!Display::wasRelaunched() && std::abs(wanted - Display::currentScaleFactor()) > 0.001) {
         if (Display::relaunchWithScale(wanted))
             return 0;
     }
 
+    app.setFont(appFont(app.font()));          // T1, T6: Body, 18 px
+
+    Motion::setUserEnabled(repo.setting("motion", "on") != "off");   // M19
+
     ThemeManager themes(repo);
     MainWindow window(repo);
-    window.show();
+    // RZ7: maximized the first time; after that, the size and place she left it at.
+    if (repo.setting("window_geometry").isEmpty())
+        window.showMaximized();
+    else
+        window.show();
     const int code = app.exec();
     AppLog::write("Program closed normally");
     return code;
@@ -68,4 +77,4 @@ int main(int argc, char *argv[])
             "Weather Tracker could not start.\n\nDetails were saved to:\n" + AppLog::path());
     }
     return 1;
-}
+}

@@ -9,6 +9,7 @@
 #include "WeatherDay.h"
 
 class AppState;
+class HoverFade;
 class Repository;
 
 // Seven painted rows, Sunday first. One widget, no per-row children.
@@ -46,4 +47,5 @@ private:
     QMap<QDate, WeatherDay> m_weather;
     QSet<QDate> m_noteDates, m_eventDates;
     int m_pressed = -1;                         // row being pressed
-};
+    HoverFade *m_hover = nullptr;               // ST2's tint under the mouse
+};

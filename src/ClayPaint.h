@@ -23,11 +23,22 @@ void drawRaised(QPainter &p, const QRectF &r, double radius, const QColor &base,
 // A flat rounded panel with a thin outline (not raised, no shadow).
 void drawCard(QPainter &p, const QRectF &r, double radius, const QColor &fill);
 
-// The keyboard focus, the same everywhere (buttons, tabs, check boxes, calendar days):
-// a dashed line in the text colour following the rounded shape.
-QPen focusPen();
-// Draws it `inset` pixels inside `r` (calendar cells use 6, so the blue "today" outline
-// stays visible).
-void drawFocusRing(QPainter &p, const QRectF &r, double radius, double inset = 6);
+// R2: the corner radius of controls (8) and of cards and panels (16) in the current look;
+// high contrast uses 4 for everything.
+double controlRadius();
+double cardRadius();
+bool contrastLook();
+int outlineWidth();                 // E2: 1 px, or 3 px in high contrast
 
-} // namespace ClayPaint
+// Fills `r`'s shape with a translucent overlay (hover, pressed, focus: ST2, ST3, F1).
+void drawOverlay(QPainter &p, const QRectF &r, double radius, const QColor &overlay);
+
+// ST2's hover tint, scaled by `amount` (0 = none, 1 = full) as it eases in and out.
+void drawHover(QPainter &p, const QRectF &r, double radius, double amount);
+
+// The keyboard focus, the same everywhere (F1): a tint of the accent over the whole control.
+// Draw it after the control's fill and BEFORE its text, so the text stays at full contrast.
+// `onAccent` for accent-filled controls (Theme::focusOverlay).
+void drawFocusTint(QPainter &p, const QRectF &r, double radius, bool onAccent = false);
+
+} // namespace ClayPaint

@@ -42,10 +42,10 @@ void LineChart::paintEvent(QPaintEvent *)
     ClayPaint::drawCard(p, QRectF(rect()).adjusted(1, 1, -1, -1), 14, pal.color(QPalette::Base));
 
     QFont f = tabularDigits(font());
-    f.setPointSize(11);
+    f = textFont(Design::TextStyle::Caption, f);
     QFont title = f;
-    title.setBold(true);
-    title.setPointSize(13);
+    title = semibold(title);
+    title = textFont(Design::TextStyle::Body, title);
     const QFontMetrics fm(f);
 
     p.setPen(pal.color(QPalette::WindowText));

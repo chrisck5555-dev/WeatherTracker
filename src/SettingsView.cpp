@@ -33,13 +33,14 @@
 #include "ThemeManager.h"
 #include "UpdateChecker.h"
 #include "Version.h"
+#include "Typography.h"
 
 namespace {
 
 QLabel *heading(const QString &text)
 {
     auto *l = new QLabel(text);
-    l->setStyleSheet("font-size: 16pt; font-weight: bold;");
+    l->setStyleSheet(textStyleSheet(Design::TextStyle::Heading));
     return l;
 }
 
@@ -69,11 +70,11 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     , m_brightGroup(new QButtonGroup(this))
 {
     QFont f = font();
-    f.setPointSize(13);
+    f = textFont(Design::TextStyle::Body, f);
     setFont(f);
 
     auto *title = new QLabel("Settings");
-    title->setStyleSheet("font-size: 20pt; font-weight: bold;");
+    title->setStyleSheet(textStyleSheet(Design::TextStyle::Title));
 
     // --- Units: ids are the enum values ---
     auto *unitRow = new QHBoxLayout;
@@ -85,9 +86,9 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     unitRow->addWidget(imperial);
     unitRow->addStretch(1);
 
-    // --- Text size: all three exist; open() hides the ones that don't fit ---
+    // --- Text size: all four, on every screen (Z4) ---
     auto *sizeRow = new QHBoxLayout;
-    for (auto s : {TextSize::Size::Normal, TextSize::Size::Large, TextSize::Size::ExtraLarge}) {
+    for (auto s : TextSize::all()) {
         auto *b = choiceButton(TextSize::label(s));
         m_sizeGroup->addButton(b, static_cast<int>(s));
         sizeRow->addWidget(b);
@@ -418,11 +419,8 @@ void SettingsView::open()
     const auto units = Units::fromSetting(m_repo.setting("units", "metric"));
     m_unitGroup->button(static_cast<int>(units))->setChecked(true);
 
-    const auto allowed = Display::allowedTextSizes();
     const auto saved = TextSize::fromSetting(m_repo.setting("text_size", "normal"));
-    for (auto s : {TextSize::Size::Normal, TextSize::Size::Large, TextSize::Size::ExtraLarge})
-        m_sizeGroup->button(static_cast<int>(s))->setVisible(allowed.contains(s));
-    m_sizeGroup->button(static_cast<int>(TextSize::effective(saved, allowed)))->setChecked(true);
+    m_sizeGroup->button(static_cast<int>(saved))->setChecked(true);
 
     m_styleGroup->button(static_cast<int>(ThemeManager::instance()->style()))->setChecked(true);
     m_brightGroup->button(static_cast<int>(ThemeManager::instance()->brightness()))->setChecked(true);
@@ -571,4 +569,4 @@ void SettingsView::chooseSize(TextSize::Size size)
                              "Please close it and open it again.");
     }
     m_sizeNote->setText("The new text size will be used the next time you open the program.");
-}
+}

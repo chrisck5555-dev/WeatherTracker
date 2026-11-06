@@ -94,11 +94,11 @@ int StatsView::layoutContent(QPainter *p) const
 {
     const QPalette pal = palette();
     QFont normal = tabularDigits(font());
-    normal.setPointSize(14);
+    normal = textFont(Design::TextStyle::Body, normal);
     QFont bold = normal;
-    bold.setBold(true);
+    bold = semibold(bold);
     QFont big = bold;
-    big.setPointSize(16);
+    big = textFont(Design::TextStyle::Heading, big);
 
     // Values sit in one column as wide as the widest value, right-aligned, so the
     // numbers line up under each other (11.1 above 8.4).
@@ -174,4 +174,4 @@ int StatsView::layoutContent(QPainter *p) const
         comparison("Compared with earlier years", m_periodHistory.highlights,
                    m_periodHistory.emptyMessage, m_periodHistory.blocks);
     return int(y + 2 * kMargin);
-}
+}

@@ -10,6 +10,7 @@
 
 #include "ThemeManager.h"
 #include "WeatherInput.h"
+#include "Typography.h"
 
 namespace {
 QString shown(const QDate &d) { return d.toString("MMMM d, yyyy"); }
@@ -19,13 +20,13 @@ GoToDatePanel::GoToDatePanel(const QDate &start, QWidget *parent)
     : QWidget(parent)
 {
     QFont f = font();
-    f.setPointSize(13);
+    f = textFont(Design::TextStyle::Body, f);
     setFont(f);
 
     auto *title = new QLabel("Go to date");
     QFont tf = font();
-    tf.setPointSize(17);
-    tf.setBold(true);
+    tf = textFont(Design::TextStyle::Body, tf);
+    tf = semibold(tf);
     title->setFont(tf);
 
     auto *prompt = new QLabel("Type a date, or click one in the calendar:");

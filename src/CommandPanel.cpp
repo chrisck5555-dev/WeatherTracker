@@ -1,4 +1,5 @@
 #include "CommandPanel.h"
+#include "Typography.h"
 
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -14,13 +15,13 @@ CommandPanel::CommandPanel(QList<Command> commands, QWidget *parent)
     , m_commands(std::move(commands))
 {
     QFont f = font();
-    f.setPointSize(13);
+    f = textFont(Design::TextStyle::Body, f);
     setFont(f);
 
     auto *title = new QLabel("What would you like to do?");
     QFont tf = font();
-    tf.setPointSize(17);
-    tf.setBold(true);
+    tf = textFont(Design::TextStyle::Body, tf);
+    tf = semibold(tf);
     title->setFont(tf);
 
     m_input = new QLineEdit;

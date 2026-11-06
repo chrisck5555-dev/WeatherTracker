@@ -10,6 +10,7 @@
 #include "Artwork.h"
 #include "ClayPaint.h"
 #include "Format.h"
+#include "HoverFade.h"
 #include "KeyboardNav.h"
 #include "Markers.h"
 #include "PeriodMath.h"
@@ -29,6 +30,12 @@ WeekView::WeekView(AppState &state, Repository &repo, QWidget *parent)
     setFocusPolicy(Qt::TabFocus);                      // only Tab, not a mouse click
     setAccessibleDescription("Week. The Up and Down arrow keys move one day, Left and Right "
                              "change the week, and Enter opens the day.");
+    m_hover = new HoverFade(this, [this](const QPointF &pos) {
+        for (int row = 0; row < 7; ++row)
+            if (rowRect(row).contains(pos))
+                return row;
+        return -1;
+    });
 }
 
 void WeekView::updateAccessibleText()
@@ -138,7 +145,7 @@ void WeekView::paintEvent(QPaintEvent *)
         p.fillRect(rect(), pal.color(QPalette::Window));
 
     QFont f = tabularDigits(font());
-    f.setPointSize(14);
+    f = textFont(Design::TextStyle::Body, f);
     p.setFont(f);
     const QDate today = QDate::currentDate();
 
@@ -158,6 +165,9 @@ void WeekView::paintEvent(QPaintEvent *)
             p.setBrush(base);
             p.drawRect(r);
         }
+        ClayPaint::drawHover(p, r, clay ? 14 : 0, m_hover->amount(row));   // ST2
+        if (hasFocus() && date == m_state.currentDate())
+            ClayPaint::drawFocusTint(p, r, clay ? 14 : 0);   // F1: under the text
 
         p.setPen(pal.color(QPalette::Text));
         p.drawText(r.adjusted(12, 0, 0, 0), Qt::AlignVCenter | Qt::AlignLeft,
@@ -197,17 +207,15 @@ void WeekView::paintEvent(QPaintEvent *)
             p.setBrush(Qt::NoBrush);
             p.drawPath(ClayPaint::shape(r.adjusted(1.5, 1.5, -1.5, -1.5), clay ? 14 : 0));
         }
-        if (hasFocus() && date == m_state.currentDate())
-            ClayPaint::drawFocusRing(p, r, clay ? 14 : 0);
     }
 
     // --- Legend ---
     QFont lf = font();
-    lf.setPointSize(11);
+    lf = textFont(Design::TextStyle::Caption, lf);
     p.setFont(lf);
     p.setPen(QPen(pal.color(QPalette::Highlight), 3));
     p.setBrush(Qt::NoBrush);
     p.drawPath(ClayPaint::shape(QRectF(12, height() - 24, 22, 16), clay ? 6 : 0));
     p.setPen(pal.color(QPalette::WindowText));
     p.drawText(QRectF(42, height() - 28, 200, 24), Qt::AlignVCenter | Qt::AlignLeft, "Today");
-}
+}

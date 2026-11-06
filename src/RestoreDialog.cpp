@@ -8,6 +8,7 @@
 #include <QVBoxLayout>
 
 #include "Backups.h"
+#include "Typography.h"
 
 RestoreDialog::RestoreDialog(QWidget *parent)
     : QDialog(parent)
@@ -16,7 +17,7 @@ RestoreDialog::RestoreDialog(QWidget *parent)
     resize(720, 520);
 
     QFont f = font();
-    f.setPointSize(13);
+    f = textFont(Design::TextStyle::Body, f);
     setFont(f);
 
     const auto backups = Backups::list();

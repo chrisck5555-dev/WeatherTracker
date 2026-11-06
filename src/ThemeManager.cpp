@@ -7,6 +7,7 @@
 #include <QWidget>
 
 #include "ClayStyle.h"
+#include "Design.h"
 #include "Repository.h"
 
 namespace {
@@ -73,49 +74,49 @@ void ThemeManager::apply()
     p.setColor(QPalette::PlaceholderText, c.mutedText);
     p.setColor(QPalette::ToolTipBase, c.surface);
     p.setColor(QPalette::ToolTipText, c.text);
-    p.setColor(QPalette::Disabled, QPalette::Text, c.mutedText);
-    p.setColor(QPalette::Disabled, QPalette::ButtonText, c.mutedText);
-    p.setColor(QPalette::Disabled, QPalette::WindowText, c.mutedText);
+    p.setColor(QPalette::Disabled, QPalette::Text, c.disabledText);
+    p.setColor(QPalette::Disabled, QPalette::ButtonText, c.disabledText);
+    p.setColor(QPalette::Disabled, QPalette::WindowText, c.disabledText);
     QApplication::setPalette(p);
 
     const bool contrast = m_style == Theme::Style::HighContrast;
-    const int radius = contrast ? 4 : 16;
-    const int border = contrast ? 3 : 1;
+    const int border = contrast ? Design::kOutlineContrast : Design::kOutline;
+    const int radius = contrast ? Design::kRadiusContrast : Design::kRadiusControl;
 
-    // High contrast: flat outlined buttons and tabs from the stylesheet.
-    // Clay: ClayStyle paints them, so no button or tab rules here.
-    const QString contrastRules = contrast ? QString(
-        "QPushButton { background: %1; color: %2; border: 3px solid %3; border-radius: 4px; padding: 6px 14px; }"
-        "QPushButton:checked { background: %4; color: %5; border-color: %4; }"
-        "QPushButton:disabled { color: %6; }"
-        "QTabBar::tab { background: %1; color: %2; border: 3px solid %3; border-radius: 4px; padding: 8px 22px; margin-right: 4px; }"
-        "QTabBar::tab:selected { background: %4; color: %5; }")
-        .arg(c.surface.name(), c.text.name(), c.border.name())
-        .arg(c.accent.name(), c.accentText.name(), c.mutedText.name())
-        : QString();
-
+    // Buttons, tabs and check boxes are painted by ClayStyle in every look. Text boxes get
+    // the control radius (R2), 12 px inside including the outline (S1), 44 px high (Z1),
+    // and the focus tint (F1) as their background while she types in them.
+    const QColor focusFill = Theme::mix(c.surface, c.accent,
+                                        contrast ? Design::kFocusTintContrast : Design::kFocusTint);
     const QString otherRules = QString(
-        "QLineEdit, QPlainTextEdit, QComboBox, QTextBrowser { background: %1; color: %2; border: %3px solid %4; border-radius: %5px; padding: 4px; }"
-        "QLineEdit, QPlainTextEdit, QComboBox { border-color: %7; }"   // boxes she types in: easy to see
-        "QLineEdit:disabled { color: %6; }"
-        "QMessageBox { background: %8; }")
+        "QLineEdit, QPlainTextEdit, QComboBox, QTextBrowser { background: %1; color: %2; border: %3px solid %4; border-radius: %5px; }"
+        "QLineEdit, QComboBox { padding: %6px %7px; min-height: %8px; }"
+        "QPlainTextEdit, QTextBrowser { padding: %6px %7px; }"
+        "QLineEdit, QPlainTextEdit, QComboBox { border-color: %9; }"   // boxes she types in: easy to see
+        "QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus { background: %10; }"
+        "QLineEdit:disabled { color: %11; }"
+        "QToolTip { background: %1; color: %2; border: %3px solid %4; padding: %6px %7px; }"
+        "QMessageBox { background: %12; }")
         .arg(c.surface.name(), c.text.name())                  // 1, 2
         .arg(border)                                           // 3
         .arg(c.border.name())                                  // 4
-        .arg(radius / 2)                                       // 5
-        .arg(c.mutedText.name())                               // 6
-        .arg(c.inputBorder.name())                             // 7
-        .arg(c.window.name());                                 // 8
+        .arg(radius)                                           // 5
+        .arg(Design::kGapButtons - border)                     // 6: 8 incl. the outline
+        .arg(Design::kGapLabel - border)                       // 7: 12 incl. the outline
+        .arg(Design::kTarget - 2 * Design::kGapButtons)        // 8: 28, so the box is 44
+        .arg(c.inputBorder.name())                             // 9
+        .arg(focusFill.name(), c.disabledText.name())          // 10, 11
+        .arg(c.window.name());                                 // 12
 
     // The outline around the tab pages. Clay draws it itself (ClayStyle, continuous corners).
     const QString paneRule = contrast
         ? QString("QTabWidget::pane { border: %1px solid %2; border-radius: %3px; }")
-              .arg(border).arg(c.border.name()).arg(radius)
+              .arg(border).arg(c.border.name()).arg(Design::kRadiusContrast)
         : QString();
 
-    qApp->setStyleSheet(contrastRules + otherRules + paneRule);
+    qApp->setStyleSheet(otherRules + paneRule);
 
     emit themeChanged();
     for (QWidget *w : QApplication::allWidgets())
         w->update();
-}
+}

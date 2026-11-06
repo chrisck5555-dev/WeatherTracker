@@ -10,6 +10,7 @@
 #include "Artwork.h"
 #include "ClayPaint.h"
 #include "Format.h"
+#include "HoverFade.h"
 #include "KeyboardNav.h"
 #include "Markers.h"
 #include "PeriodMath.h"
@@ -37,7 +38,17 @@ MonthGridWidget::MonthGridWidget(AppState &state, Repository &repo, QWidget *par
     setFocusPolicy(Qt::TabFocus);
     setAccessibleDescription("Month calendar. The arrow keys move one day, Page Up and "
                              "Page Down move one month, and Enter opens the day.");
+    m_hover = new HoverFade(this, [this](const QPointF &pos) { return hoverItemAt(pos); });
     reloadData();
+}
+
+int MonthGridWidget::hoverItemAt(const QPointF &pos) const
+{
+    for (int row = 0; row < 6; ++row)
+        if (weekButtonRect(row).contains(pos))
+            return 100 + row;
+    const QDate d = dateAt(pos);
+    return d.isValid() ? int(gridStart().daysTo(d)) : -1;
 }
 
 // ---------------- Data ----------------
@@ -210,9 +221,8 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
 
     // --- Weekday header (Sunday first) ---
     QFont headerFont = font();
-    headerFont.setPointSize(12);
-    headerFont.setBold(true);
-    p.setFont(headerFont);
+    headerFont = textFont(Design::TextStyle::Caption, headerFont);
+        p.setFont(headerFont);
     p.setPen(pal.color(QPalette::WindowText));
     for (int col = 0; col < 7; ++col) {
         const QRectF r(grid.left() + col * cellW, 0, cellW, kHeaderHeight);
@@ -222,9 +232,9 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
 
     // --- The 42 cells ---
     QFont dayFont = tabularDigits(font());
-    dayFont.setPointSize(14);
+    dayFont = textFont(Design::TextStyle::Body, dayFont);
     QFont legendFont = font();
-    legendFont.setPointSize(11);
+    legendFont = textFont(Design::TextStyle::Caption, legendFont);
     p.setFont(dayFont);
 
     for (int row = 0; row < 6; ++row) {
@@ -249,6 +259,9 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
             p.setPen(QPen(pal.color(QPalette::Mid), 1));
             p.setBrush(base);
             p.drawPath(ClayPaint::shape(cell, radius));
+            ClayPaint::drawHover(p, cell, radius, m_hover->amount(row * 7 + col));   // ST2
+            if (hasFocus() && date == current)
+                ClayPaint::drawFocusTint(p, cell, radius);    // F1: under the text
 
             p.setPen(pal.color(inMonth ? QPalette::Active : QPalette::Disabled, QPalette::Text));
             p.drawText(cell.adjusted(8, 6, -8, 0), Qt::AlignTop | Qt::AlignLeft,
@@ -285,6 +298,7 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
             p.setBrush(down ? pal.color(QPalette::Mid) : pal.color(QPalette::Button));
             p.drawPath(ClayPaint::shape(r, 4));
         }
+        ClayPaint::drawHover(p, down ? r.translated(0, 2) : r, clay ? 14 : 4, m_hover->amount(100 + row));
         p.setPen(pal.color(QPalette::ButtonText));
         p.drawText(r.translated(0, down ? 2 : 0), Qt::AlignCenter, "Open week");
     }
@@ -300,11 +314,6 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
         p.setBrush(Qt::NoBrush);
         p.drawPath(ClayPaint::shape(cell.adjusted(1.5, 1.5, -1.5, -1.5), radius));
     }
-
-    // --- Keyboard focus: the selected day ---
-    const qint64 focusIndex = start.daysTo(current);
-    if (hasFocus() && focusIndex >= 0 && focusIndex < 42)
-        ClayPaint::drawFocusRing(p, cellRect(int(focusIndex / 7), int(focusIndex % 7)), radius);
 
     // --- Legend ---
     p.setFont(legendFont);
@@ -326,4 +335,4 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
     p.drawPath(ClayPaint::shape(QRectF(x, ly - 9, 22, 18), clay ? 6 : 0));
     p.setPen(pal.color(QPalette::WindowText));
     p.drawText(QRectF(x + 32, ly - 14, 300, 28), Qt::AlignVCenter | Qt::AlignLeft, "Today");
-}
+}

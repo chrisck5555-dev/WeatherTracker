@@ -56,10 +56,10 @@ void TempChart::paintEvent(QPaintEvent *)
     ClayPaint::drawCard(p, QRectF(rect()).adjusted(1, 1, -1, -1), 14, pal.color(QPalette::Base));
 
     QFont f = tabularDigits(font());
-    f.setPointSize(11);
+    f = textFont(Design::TextStyle::Caption, f);
     QFont title = f;
-    title.setBold(true);
-    title.setPointSize(13);
+    title = semibold(title);
+    title = textFont(Design::TextStyle::Body, title);
     const QFontMetrics fm(f);
 
     // --- Title and legend ---
@@ -112,7 +112,7 @@ void TempChart::paintEvent(QPaintEvent *)
         p.setPen(QPen(pal.color(QPalette::WindowText), 3, Qt::DashLine));
         p.drawLine(QPointF(plot.left(), yOf(freezing)), QPointF(plot.right(), yOf(freezing)));
         QFont bold = f;
-        bold.setBold(true);
+        bold = semibold(bold);
         p.setFont(bold);
         p.drawText(QRectF(plot.left() + 6, yOf(freezing) - 24, 120, 22),
                    Qt::AlignVCenter | Qt::AlignLeft, "Freezing");
@@ -150,4 +150,4 @@ void TempChart::paintEvent(QPaintEvent *)
         p.drawText(QRectF(x - 30, plot.bottom() + 6, 60, 24), Qt::AlignHCenter | Qt::AlignTop,
                    text[k]);
     }
-}
+}

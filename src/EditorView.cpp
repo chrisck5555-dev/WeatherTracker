@@ -25,6 +25,7 @@
 #include "WeatherIcons.h"
 #include "WeatherInput.h"
 #include "ThemeManager.h"
+#include "Typography.h"
 
 namespace {
 
@@ -88,11 +89,11 @@ EditorView::EditorView(Repository &repo, QWidget *parent)
     , m_repo(repo)
 {
     QFont f = font();
-    f.setPointSize(13);
+    f = textFont(Design::TextStyle::Body, f);
     setFont(f);                                  // children inherit it
 
     m_title = new QLabel;
-    m_title->setStyleSheet("font-size: 16pt; font-weight: bold;");
+    m_title->setStyleSheet(textStyleSheet(Design::TextStyle::Heading));
 
     // Rules and units are filled in by applyUnits() each time the editor opens.
     m_high = new NumberField(NumberSpec{});
@@ -461,4 +462,4 @@ void EditorView::save()
         emit erasedOnSave(m_date, what, before);
     }
     emit finished(true);
-}
+}
