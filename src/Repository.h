@@ -39,6 +39,11 @@ public:
     // Events, stored by stable key such as "first_snow"
     QSet<QString> events(const QDate &date) const;
     bool saveEvents(const QDate &date, const QSet<QString> &keys);
+    // True when the latest "Snow cover starts" on or before `date` has no "All melted" after
+    // it (an "All melted" on the same day wins). A start counts for at most kSnowCoverDays,
+    // so a forgotten "All melted" can't leave snow on the Day banner all summer (IL1).
+    bool snowCoverOn(const QDate &date) const;
+    static constexpr int kSnowCoverDays = 183;
 
     // Calendar markers: a few range queries per screen, not one per cell
     QSet<QDate> datesWithNotes(const QDate &from, const QDate &to) const;

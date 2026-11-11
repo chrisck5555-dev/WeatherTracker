@@ -1,11 +1,13 @@
 #include "Artwork.h"
 
 #include <QColor>
+#include <QDate>
 #include <QCoreApplication>
 #include <QFile>
 #include <QHash>
 #include <QPaintDevice>
 #include <QPainter>
+#include <algorithm>
 
 #include "WeatherIcons.h"
 
@@ -23,7 +25,7 @@ QHash<QString, QPixmap> &cache()
     return pixmaps;
 }
 
-enum class Fit { Keep, Cover, Stretch };   // keep its shape / fill and crop / fill and stretch
+enum class Fit { Keep, Cover };   // keep its shape / fill and crop
 
 // Loads `path` and scales it to `logical` size (times dpr).
 QPixmap scaled(const QString &path, const QSize &logical, qreal dpr, Fit fit)
@@ -41,9 +43,7 @@ QPixmap scaled(const QString &path, const QSize &logical, qreal dpr, Fit fit)
     if (base.isNull())
         return QPixmap();
     QPixmap result;
-    if (fit == Fit::Stretch) {
-        result = base.scaled(px, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    } else if (fit == Fit::Cover) {
+    if (fit == Fit::Cover) {
         const QPixmap big = base.scaled(px, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
         result = big.copy((big.width() - px.width()) / 2, (big.height() - px.height()) / 2,
                           px.width(), px.height());
@@ -84,16 +84,73 @@ QPixmap emptyDay(int size, qreal dpr)
                   QSize(size, size), dpr, Fit::Keep);
 }
 
-bool bannerAvailable(const QString &name)
+bool bannerAvailable()
 {
-    return isClay() && QFile::exists(QString(":/backgrounds/%1/%2.png").arg(look(), name));
+    return isClay() && QFile::exists(QStringLiteral(":/banner/skies/sky_day_clear.png"));
 }
 
-QPixmap banner(const QString &name, const QSize &size, qreal dpr)
+namespace {
+
+// One sky or ground picture of the banner, loaded once.
+const QImage &bannerPart(const QString &path)
 {
-    if (!isClay())
+    static QHash<QString, QImage> parts;
+    auto it = parts.find(path);
+    if (it == parts.end())
+        it = parts.insert(path, QImage(path).convertToFormat(QImage::Format_ARGB32_Premultiplied));
+    return *it;
+}
+
+} // namespace
+
+QPixmap banner(const QDate &date, BannerPlan::Sky sky, bool snowGround, const QSize &size,
+               qreal dpr)
+{
+    if (!bannerAvailable() || size.isEmpty() || !date.isValid())
         return QPixmap();
-    return scaled(QString(":/backgrounds/%1/%2.png").arg(look(), name), size, dpr, Fit::Stretch);
+    const QSize px(qRound(size.width() * dpr), qRound(size.height() * dpr));
+    const QString key = QString("banner|%1|%2|%3|%4|%5x%6").arg(look(), date.toString(Qt::ISODate))
+                            .arg(int(sky)).arg(int(snowGround)).arg(px.width()).arg(px.height());
+    auto &pixmaps = cache();
+    if (const auto it = pixmaps.constFind(key); it != pixmaps.constEnd())
+        return *it;
+
+    // The squares are drawn at their own size (162 px) side by side, then the whole row is
+    // scaled to the strip's height at once, so no seams appear between them. Never stretched:
+    // each square stays square, and the last one is cut off where the strip ends.
+    constexpr int kSquare = 162, kPiece = kSquare / 3;
+    const bool night = look() == QLatin1String("clay-dark");
+    const QString time = night ? QStringLiteral("night") : QStringLiteral("day");
+    const QString surface = snowGround ? QStringLiteral("snow") : QStringLiteral("grass");
+    const int count = std::max(1, (px.width() + px.height() - 1) / std::max(1, px.height()));
+    QImage row(count * kSquare, kSquare, QImage::Format_ARGB32_Premultiplied);
+    row.fill(Qt::transparent);
+    {
+        QPainter p(&row);
+        const QList<BannerPlan::Square> squares = BannerPlan::plan(date, sky, count);
+        for (int i = 0; i < squares.size(); ++i) {
+            QString skyName = squares[i].sky;
+            if (night)
+                skyName.replace(QLatin1String("sun"), QLatin1String("moon"));
+            p.drawImage(i * kSquare, 0,
+                        bannerPart(QString(":/banner/skies/sky_%1_%2.png").arg(time, skyName)));
+            for (int j = 0; j < 3; ++j) {
+                const BannerPlan::Piece &g = squares[i].ground[size_t(j)];
+                p.drawImage(i * kSquare + j * kPiece, 0,
+                            bannerPart(QString(":/banner/ground/ground_%1_%2_%3_%4_%5.png")
+                                           .arg(time, surface).arg(g.h0).arg(g.h1)
+                                           .arg(g.concaveUp ? "concave-up" : "concave-down")));
+            }
+        }
+    }
+    const QImage scaledRow = row.scaledToHeight(px.height(), Qt::SmoothTransformation);
+    QPixmap result = QPixmap::fromImage(scaledRow.copy(0, 0, std::min(px.width(), scaledRow.width()),
+                                                       px.height()));
+    result.setDevicePixelRatio(dpr);
+    if (pixmaps.size() > 300)
+        pixmaps.clear();
+    pixmaps.insert(key, result);
+    return result;
 }
 
 QPixmap seasonTile(int month, const QSize &size, qreal dpr)

@@ -25,7 +25,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;      // arrows move a month, Enter opens it
     void focusInEvent(QFocusEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
-    QSize minimumSizeHint() const override { return QSize(620, 420); }
+    QSize minimumSizeHint() const override { return QSize(620, 330); }
 
 private:
     QRectF tileRect(int index) const;     // 0..11

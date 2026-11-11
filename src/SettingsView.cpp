@@ -1,5 +1,7 @@
 #include "SettingsView.h"
 
+#include <algorithm>
+
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QCoreApplication>
@@ -48,14 +50,15 @@ QPushButton *choiceButton(const QString &text)
 {
     auto *b = new QPushButton(text);
     b->setCheckable(true);
-    b->setMinimumSize(180, 60);
+    // Never narrower than its text needs (L4): a row that doesn't fit scrolls instead.
+    b->setMinimumSize(std::max(180, b->sizeHint().width()), 60);
     return b;
 }
 
 QPushButton *smallButton(const QString &text)
 {
     auto *b = new QPushButton(text);
-    b->setMinimumSize(200, 46);
+    b->setMinimumSize(std::max(200, b->sizeHint().width()), 46);
     return b;
 }
 
@@ -86,7 +89,7 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     unitRow->addWidget(imperial);
     unitRow->addStretch(1);
 
-    // --- Text size: all four, on every screen (Z4) ---
+    // --- Text size: all three, on every screen (Z4) ---
     auto *sizeRow = new QHBoxLayout;
     for (auto s : TextSize::all()) {
         auto *b = choiceButton(TextSize::label(s));
@@ -569,4 +572,4 @@ void SettingsView::chooseSize(TextSize::Size size)
                              "Please close it and open it again.");
     }
     m_sizeNote->setText("The new text size will be used the next time you open the program.");
-}
+}

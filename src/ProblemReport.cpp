@@ -44,7 +44,6 @@ QString build(const Repository &repo, const QString &logTail)
     t << "Settings\n";
     t << "  Units: " << repo.setting("units", "metric") << "\n";
     t << "  Text size: " << repo.setting("text_size", "normal") << "\n";
-    t << "  Help shown: " << (repo.setting("help_visible", "1") == "1" ? "yes" : "no") << "\n";
     t << "  Update check: " << (repo.setting("update_check", "on") == "off" ? "off" : "on") << "\n\n";
     t << "Saved data (counts only)\n";
     t << "  Days with weather: " << c.weatherDays << "\n";

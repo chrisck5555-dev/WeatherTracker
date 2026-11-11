@@ -25,17 +25,28 @@
 
 namespace {
 
-// A strip showing the day's kind of weather. It only paints a picture, so it needs no moc.
+// A strip showing the day's weather (IL1), built from the banner squares for this date.
+// It only paints a picture, so it needs no moc.
 class BannerStrip : public QWidget
 {
 public:
     explicit BannerStrip(QWidget *parent = nullptr) : QWidget(parent) {}
 
+    void setPicture(const QDate &date, BannerPlan::Sky sky, bool snowGround, bool picture)
+    {
+        m_date = date;
+        m_sky = sky;
+        m_snow = snowGround;
+        m_picture = picture;
+        update();
+    }
+
 protected:
     void paintEvent(QPaintEvent *) override
     {
-        const QPixmap picture = Artwork::banner(property("bannerName").toString(), size(),
-                                                devicePixelRatioF());
+        if (!m_picture)
+            return;
+        const QPixmap picture = Artwork::banner(m_date, m_sky, m_snow, size(), devicePixelRatioF());
         if (picture.isNull())
             return;
         QPainter p(this);
@@ -43,26 +54,13 @@ protected:
         p.setClipPath(ClayPaint::shape(QRectF(rect()), 18));
         p.drawPixmap(QPointF(0, 0), picture);
     }
-};
 
-// Which picture suits the day: what fell from the sky first, otherwise the cloud cover.
-QString bannerFor(const std::optional<WeatherDay> &weather)
-{
-    if (!weather)
-        return "banner-plain";
-    const QString &t = weather->precipType;
-    if (t == "Snow")
-        return "banner-snow";
-    if (t == "Rain" || t == "Drizzle" || t == "Freezing rain" || t == "Hail"
-        || t == "Sleet" || t == "Mixed")
-        return "banner-rain";
-    const QString &c = weather->cloud;
-    if (c == "Clear" || c == "Mostly clear")
-        return "banner-sunny";
-    if (c == "Partly cloudy" || c == "Mostly cloudy" || c == "Overcast")
-        return "banner-cloudy";
-    return "banner-plain";
-}
+private:
+    QDate m_date;
+    BannerPlan::Sky m_sky = BannerPlan::Sky::Plain;
+    bool m_snow = false;
+    bool m_picture = false;
+};
 
 // Three columns: label, a fixed-width picture column, value. Every row has the picture
 // column (empty when there is no picture) so all the values start at the same place.
@@ -166,14 +164,18 @@ void DayView::refresh()
     m_deleteButton->setVisible(!empty);
 
     // Clay looks: the strip is taller and shows a picture matching the day's weather behind
-    // the button. Other looks (or a missing picture): just the button, no extra height.
-    const QString bannerName = bannerFor(weather);
-    const bool art = Artwork::bannerAvailable(bannerName);
-    m_banner->setProperty("bannerName", art ? bannerName : QString());
-    m_banner->setAccessibleName(art ? "Picture of the day's weather" : QString());
+    // the button (IL1). Other looks: just the button, no extra height.
+    const auto sky = weather ? BannerPlan::skyFor(weather->precipType, weather->cloud)
+                             : BannerPlan::Sky::Plain;
+    const bool snowGround = (weather && weather->precipType == "Snow") || m_repo.snowCoverOn(date);
+    const bool art = Artwork::bannerAvailable();
+    static_cast<BannerStrip *>(m_banner)->setPicture(date, sky, snowGround, art);
+    QString pictureName = "Picture: " + BannerPlan::skyWords(sky);
+    if (snowGround && sky != BannerPlan::Sky::Snow)
+        pictureName += ", snow on the ground";
+    m_banner->setAccessibleName(art ? pictureName : QString());
     m_banner->setMinimumHeight(art ? 110 : 0);
     m_banner->layout()->setContentsMargins(art ? 24 : 0, 0, 0, 0);
-    m_banner->update();
 
     if (empty) {
         const QPixmap picture = Artwork::emptyDay(112, devicePixelRatioF());

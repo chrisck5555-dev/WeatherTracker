@@ -220,12 +220,22 @@ void MonthGridWidget::paintEvent(QPaintEvent *)
         p.fillRect(rect(), pal.color(QPalette::Window));
 
     // --- Weekday header (Sunday first) ---
+    // CAL5 (D61): while the mouse is over a day, or the keyboard is on one (the grid only
+    // takes the focus with Tab), that day's weekday name is Semibold, so its column stands
+    // out. Otherwise all the names are Regular.
     QFont headerFont = font();
     headerFont = textFont(Design::TextStyle::Caption, headerFont);
-        p.setFont(headerFont);
+    QFont markedFont = headerFont;
+    markedFont.setWeight(QFont::DemiBold);
+    int markedCol = -1;
+    if (m_hover->current() >= 0 && m_hover->current() < 42)
+        markedCol = m_hover->current() % 7;
+    else if (hasFocus())
+        markedCol = m_state.currentDate().dayOfWeek() % 7;          // Sunday (7) is column 0
     p.setPen(pal.color(QPalette::WindowText));
     for (int col = 0; col < 7; ++col) {
         const QRectF r(grid.left() + col * cellW, 0, cellW, kHeaderHeight);
+        p.setFont(col == markedCol ? markedFont : headerFont);
         // QLocale numbers days Monday=1 ... Sunday=7, so column 0 (Sunday) is 7.
         p.drawText(r, Qt::AlignCenter, QLocale().dayName(col == 0 ? 7 : col, QLocale::ShortFormat));
     }

@@ -33,7 +33,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;      // arrows move a day, Enter opens it
     void focusInEvent(QFocusEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
-    QSize minimumSizeHint() const override { return QSize(720, 420); }
+    QSize minimumSizeHint() const override { return QSize(720, 456); }   // 6 rows of 62 (number and markers clear), header, key
 
 private:
     void onDateChanged();

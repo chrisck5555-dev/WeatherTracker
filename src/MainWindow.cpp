@@ -16,10 +16,10 @@
 #include <QPushButton>
 #include <QShortcut>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSizePolicy>
 #include <QStackedWidget>
-#include <QTabBar>
-#include <QTabWidget>
+#include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -49,11 +49,17 @@
 #include "StatsView.h"
 #include "Theme.h"
 #include "ThemeManager.h"
-#include "Toast.h"
+#include "UndoBar.h"
 #include "Version.h"
 #include "WeekView.h"
 #include "YearView.h"
+#include "ChoiceButtons.h"
+#include "FloatingBars.h"
+#include "FlowLayout.h"
+#include "Glass.h"
 #include "Icons.h"
+#include "PageArea.h"
+#include "PageHeader.h"
 #include "Motion.h"
 #include "Typography.h"
 
@@ -97,89 +103,23 @@ void sizeToCurrentPage(QStackedWidget *stack)
     apply();
 }
 
-// How far (in pixels) the Add today's weather button is raised to line up with the tabs.
-constexpr int kAddTodayLift = 18;
-
-// QTabBar selects on press. This swallows the press and selects on release,
-// only if the release is over the same tab that was pressed. It also tells the
-// style which tab is down (property "pressedTab", -1 = none) so it can sink.
-//
-// Keyboard: when the tab bar has the focus, Left/Right/Home/End belong to it (the window
-// would otherwise turn Left/Right into Previous/Next), and switch tabs the same animated
-// way as a click.
-class ReleaseToSelect : public QObject
+// A stack whose size is only its current page's. QStackedWidget asks every page for its
+// height at a given width, hidden ones too, so a tall hidden page (the editor) would make
+// the page scroll for nothing.
+class PageStack : public QStackedWidget
 {
 public:
-    explicit ReleaseToSelect(QTabBar *bar) : QObject(bar), m_bar(bar)
+    using QStackedWidget::QStackedWidget;
+    bool hasHeightForWidth() const override
     {
-        bar->setProperty("pressedTab", -1);
-        bar->installEventFilter(this);
+        const QWidget *w = currentWidget();
+        return w && w->hasHeightForWidth();
     }
-
-    // Lets the window animate the switch: it receives the new index and the change, and runs it.
-    std::function<void(int, const std::function<void()> &)> wrap;
-
-protected:
-    bool eventFilter(QObject *, QEvent *e) override
+    int heightForWidth(int width) const override
     {
-        if (e->type() == QEvent::ShortcutOverride || e->type() == QEvent::KeyPress) {
-            auto *key = static_cast<QKeyEvent *>(e);
-            const int k = key->key();
-            if ((key->modifiers() & ~Qt::KeypadModifier)
-                || (k != Qt::Key_Left && k != Qt::Key_Right && k != Qt::Key_Home && k != Qt::Key_End))
-                return false;
-            if (e->type() == QEvent::ShortcutOverride) {
-                e->accept();                        // "these keys are mine"
-                return true;
-            }
-            select(target(k));
-            return true;
-        }
-        if (e->type() != QEvent::MouseButtonPress
-            && e->type() != QEvent::MouseButtonDblClick
-            && e->type() != QEvent::MouseButtonRelease)
-            return false;
-        const auto *me = static_cast<QMouseEvent *>(e);
-        if (me->button() != Qt::LeftButton)
-            return false;
-        const int index = m_bar->tabAt(me->position().toPoint());
-        if (e->type() == QEvent::MouseButtonRelease) {
-            if (index >= 0 && index == m_pressed)
-                select(index);
-            m_pressed = -1;
-        } else {
-            m_pressed = index;
-        }
-        m_bar->setProperty("pressedTab", m_pressed);
-        m_bar->update();
-        return true;
+        const QWidget *w = currentWidget();
+        return w && w->hasHeightForWidth() ? w->heightForWidth(width) : -1;
     }
-
-private:
-    void select(int index)
-    {
-        if (index < 0 || index == m_bar->currentIndex() || !m_bar->isTabEnabled(index))
-            return;
-        auto change = [this, index] { m_bar->setCurrentIndex(index); };
-        if (wrap)
-            wrap(index, change);
-        else
-            change();
-    }
-
-    // The tab a key moves to: the next enabled one that way, or the first/last.
-    int target(int key) const
-    {
-        const int n = m_bar->count();
-        const int step = (key == Qt::Key_Left || key == Qt::Key_End) ? -1 : 1;
-        int i = key == Qt::Key_Home ? 0 : key == Qt::Key_End ? n - 1 : m_bar->currentIndex() + step;
-        while (i >= 0 && i < n && !m_bar->isTabEnabled(i))
-            i += step;
-        return (i >= 0 && i < n) ? i : -1;
-    }
-
-    QTabBar *m_bar;
-    int m_pressed = -1;
 };
 
 // The root of the window. It paints the background (the clay pattern, or a plain fill in
@@ -198,6 +138,26 @@ protected:
     }
 };
 
+// The normal screen: the page with the bars floating over it. The window places them itself
+// (layoutFrame).
+class FrameWidget : public QWidget
+{
+public:
+    using QWidget::QWidget;
+    std::function<void()> onResize;
+
+protected:
+    void resizeEvent(QResizeEvent *) override { if (onResize) onResize(); }
+};
+
+QPushButton *toolbarButton(const QString &text, const QString &icon, const QString &tip)
+{
+    auto *b = new QPushButton(text);
+    b->setIcon(Icons::icon(icon));
+    b->setToolTip(tip);
+    return b;
+}
+
 } // namespace
 
 MainWindow::MainWindow(Repository &repo, QWidget *parent)
@@ -208,81 +168,42 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     setWindowTitle(QString("Weather Tracker %1").arg(APP_VERSION));
     resize(Design::kCheckedWindowWidth, Design::kCheckedWindowHeight);
 
-    // --- Title row: Settings and Help (top-right) ---
-    auto *title = new QLabel("Weather Tracker");
-    title->setStyleSheet(textStyleSheet(Design::TextStyle::Heading));
+    // The frame, built in reading order so Tab goes bars, header, page (KB1).
+    auto *frame = new FrameWidget;
+    m_frame = frame;
+    m_pageArea = new PageArea;                      // placed later; the bars need it now
+    m_backdrop = new GlassBackdrop(m_frame, m_pageArea);
+    m_bars = new FloatingBars(m_backdrop, m_pageArea, m_frame);
 
-    m_settingsButton = new QPushButton("Settings");
-    m_settingsButton->setMinimumHeight(44);
-
-    m_searchButton = new QPushButton("Search");
-    m_searchButton->setMinimumHeight(44);
-    m_goToDateButton = new QPushButton("Go to date");
-    m_goToDateButton->setMinimumHeight(44);
-
-    m_helpButton = new QPushButton("Help");
-    m_helpButton->setCheckable(true);
-    m_helpButton->setChecked(m_repo.setting("help_visible", "1") == "1");
-    m_helpButton->setMinimumHeight(44);
-
-    auto *titleRow = new QHBoxLayout;
-    titleRow->addWidget(title);
-    titleRow->addStretch(1);
-    titleRow->addWidget(m_searchButton);
-    titleRow->addWidget(m_goToDateButton);
-    titleRow->addWidget(m_settingsButton);
-    titleRow->addWidget(m_helpButton);
-
-    m_helpLabel = new QLabel;
-    m_helpLabel->setWordWrap(true);
-
-    // --- Navigation bar ---
-    m_prevButton = new QPushButton;
-    m_nextButton = new QPushButton;
-    m_todayButton = new QPushButton;
-    m_dateLabel = new QLabel;
-    m_dateLabel->setAlignment(Qt::AlignCenter);
-    m_dateLabel->setStyleSheet(textStyleSheet(Design::TextStyle::Heading));
-    for (auto *b : {m_prevButton, m_nextButton, m_todayButton}) {
-        QSizePolicy keep = b->sizePolicy();
-        keep.setRetainSizeWhenHidden(true);   // hidden ("All time") buttons still hold their space
-        b->setSizePolicy(keep);
-    }
-
-    auto *navBar = new QHBoxLayout;
-    navBar->addWidget(m_prevButton);
-    navBar->addWidget(m_dateLabel, 1);
-    navBar->addWidget(m_nextButton);
-    navBar->addWidget(m_todayButton);
-
-    // Each button says which key does the same thing.
-    m_prevButton->setToolTip("Go back (Left arrow key)");
-    m_nextButton->setToolTip("Go forward (Right arrow key)");
-    m_todayButton->setToolTip("Come back to today (T key)");
-    m_searchButton->setToolTip("Find days by their notes or events (Ctrl+F)");
-    m_goToDateButton->setToolTip("Jump to any date (Ctrl+G)");
-    m_settingsButton->setToolTip("Units, text size, look, backups and privacy");
-    m_helpButton->setToolTip("Show or hide the tips under the title. "
-                             "Press F1 for the user guide, or Ctrl+K for every command.");
-
-    // Fluent icons beside every label (I3, K9). "Next" carries its arrow after the text.
-    m_searchButton->setIcon(Icons::icon("search"));
-    m_goToDateButton->setIcon(Icons::icon("calendar_arrow_right"));
-    m_settingsButton->setIcon(Icons::icon("settings"));
-    m_helpButton->setIcon(Icons::icon("question_circle"));
-    m_prevButton->setIcon(Icons::icon("chevron_left"));
-    m_nextButton->setIcon(Icons::icon("chevron_right"));
-    m_nextButton->setProperty("wtIconAfter", true);
-    m_todayButton->setIcon(Icons::icon("calendar_today"));
-
-    // Created ONCE here; refresh functions only update them.
-    m_backButton = new QPushButton;
-    m_backButton->setIcon(Icons::icon("arrow_left"));
-    m_backButton->hide();
-
+    // --- Toolbar (plan 2.1): the daily action alone, then Search and Go to date, then
+    // Settings and Help, each group its own glass shape (G7) ---
     m_addTodayButton = new QPushButton;
+    m_addTodayButton->setProperty("wtKind", "primary");
+    m_addGroup = m_bars->addGroup(FloatingBars::Toolbar);
+    m_addGroup->flow()->addWidget(m_addTodayButton);
 
-    // --- Tabs, each with its own selector ---
+    m_searchButton = toolbarButton("Search", "search", "Find days by their notes or events (Ctrl+F)");
+    m_goToDateButton = toolbarButton("Go to date", "calendar_arrow_right", "Jump to any date (Ctrl+G)");
+    m_findGroup = m_bars->addGroup(FloatingBars::Toolbar, true);
+    m_findGroup->flow()->addWidget(m_searchButton);
+    m_findGroup->flow()->addWidget(m_goToDateButton);
+
+    m_settingsButton = toolbarButton("Settings", "settings", "Units, text size, look, backups and privacy");
+    m_helpButton = toolbarButton("Help", "question_circle", "Open the user guide (F1)");   // D34
+    m_appGroup = m_bars->addGroup(FloatingBars::Toolbar);
+    m_appGroup->flow()->addWidget(m_settingsButton);
+    m_appGroup->flow()->addWidget(m_helpButton);
+
+    // --- Tab row: the tabs, then this tab's period choice at the right end (L10) ---
+    m_tabButtons = new ChoiceButtons;
+    m_tabButtons->setAccessibleName("Tabs");
+    m_tabButtons->addChoice(int(Tab::Calendar), "Calendar", "calendar_ltr");
+    m_tabButtons->addChoice(int(Tab::Analytics), "Analytics", "table");
+    m_tabButtons->addChoice(int(Tab::Charts), "Charts", "data_line");
+    m_tabButtons->addChoice(int(Tab::Records), "Records", "trophy");
+    m_tabGroup = m_bars->addGroup(FloatingBars::TabRow);
+    m_tabGroup->flow()->addWidget(m_tabButtons);
+
     m_selectors[0] = new PeriodSelector("Show:",
         {Period::Day, Period::Week, Period::Month, Period::Year});
     m_selectors[1] = new PeriodSelector("Numbers for:",
@@ -291,13 +212,22 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
         {Period::Month, Period::Season, Period::Year});
     m_selectors[3] = new PeriodSelector("Records for:",
         {Period::Month, Period::Season, Period::Year, Period::All});
+    for (int i = 0; i < 4; ++i) {
+        m_selectorGroups[i] = m_bars->addGroup(FloatingBars::TabRow, true);
+        m_selectorGroups[i]->flow()->addWidget(m_selectors[i]);
+        m_selectorGroups[i]->setVisible(i == 0);
+    }
 
-    m_tabs = new QTabWidget;
-    auto *tabClicks = new ReleaseToSelect(m_tabs->tabBar());
+    // --- The page: its header, then the tab's view ---
+    m_pageColumn = new QWidget;
+    auto *column = new QVBoxLayout(m_pageColumn);
+    column->setContentsMargins(0, 0, 0, 0);
+    column->setSpacing(Design::kGapCards);
+    m_header = new PageHeader;
+    column->addWidget(m_header);
+    m_tabStack = new PageStack;
+    column->addWidget(m_tabStack, 1);
 
-    // Calendar page: selector on top, a stack of views below.
-    auto *calendarPage = new QWidget;
-    auto *calendarLayout = new QVBoxLayout(calendarPage);
     auto *dayView = new DayView(*m_state, m_repo);
     m_dayView = dayView;
     auto *weekView = new WeekView(*m_state, m_repo);
@@ -305,9 +235,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     m_monthGrid = monthGrid;
     auto *yearView = new YearView(*m_state);
     m_editor = new EditorView(m_repo);
-
-    calendarLayout->addWidget(m_selectors[0]);
-    m_calendarStack = new QStackedWidget;
+    m_calendarStack = new PageStack;
     m_calendarStack->addWidget(dayView);      // 0
     m_calendarStack->addWidget(weekView);     // 1
     m_calendarStack->addWidget(monthGrid);    // 2
@@ -315,68 +243,33 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     m_calendarStack->addWidget(m_editor);     // 4
     sizeToCurrentPage(m_calendarStack);
     m_tabContent[0] = m_calendarStack;
-    calendarLayout->addWidget(m_calendarStack, 1);
-    m_tabs->addTab(calendarPage, "Calendar");
+    m_tabStack->addWidget(m_calendarStack);
 
-    // Analytics page: selector on top, the painted stats in a scroll area.
-    auto *analyticsPage = new QWidget;
-    auto *analyticsLayout = new QVBoxLayout(analyticsPage);
-    analyticsLayout->addWidget(m_selectors[1]);
-    auto *statsScroll = new QScrollArea;
-    statsScroll->setWidgetResizable(true);
-    statsScroll->setFrameShape(QFrame::NoFrame);
-    statsScroll->setWidget(new StatsView(*m_state, m_repo));
-    statsScroll->viewport()->setAutoFillBackground(false);   // let the background show through
-    statsScroll->widget()->setAutoFillBackground(false);
-    analyticsLayout->addWidget(statsScroll, 1);
-    m_tabContent[1] = statsScroll;
-    m_tabs->addTab(analyticsPage, "Analytics");
-
-    // Charts page
-    auto *chartsPage = new QWidget;
-    auto *chartsLayout = new QVBoxLayout(chartsPage);
-    chartsLayout->addWidget(m_selectors[2]);
+    // The page itself scrolls (SC1), so Analytics and Records sit straight on it.
+    auto *statsView = new StatsView(*m_state, m_repo);
+    statsView->setAutoFillBackground(false);
+    m_tabContent[1] = statsView;
+    m_tabStack->addWidget(statsView);
     auto *chartsView = new ChartsView(*m_state, m_repo);
-    chartsLayout->addWidget(chartsView, 1);
     m_tabContent[2] = chartsView;
-    m_tabs->addTab(chartsPage, "Charts");
-
-    // Records page: selector on top, the painted records in a scroll area.
-    auto *recordsPage = new QWidget;
-    auto *recordsLayout = new QVBoxLayout(recordsPage);
-    recordsLayout->addWidget(m_selectors[3]);
-    auto *recordsScroll = new QScrollArea;
-    recordsScroll->setWidgetResizable(true);
-    recordsScroll->setFrameShape(QFrame::NoFrame);
+    m_tabStack->addWidget(chartsView);
     auto *recordsView = new RecordsView(*m_state, m_repo);
-    recordsScroll->setWidget(recordsView);
-    recordsScroll->viewport()->setAutoFillBackground(false);
     recordsView->setAutoFillBackground(false);
-    recordsLayout->addWidget(recordsScroll, 1);
-    m_tabContent[3] = recordsScroll;
-    m_tabs->addTab(recordsPage, "Records");
-    // The button goes in a holder so its position can be nudged (kAddTodayLift pixels up).
-    auto *addTodayHolder = new QWidget;
-    auto *holderLayout = new QVBoxLayout(addTodayHolder);
-    holderLayout->setContentsMargins(0, 0, 0, kAddTodayLift);
-    holderLayout->setSpacing(0);
-    holderLayout->addWidget(m_addTodayButton);
-    m_tabs->setCornerWidget(addTodayHolder, Qt::TopRightCorner);   // same row as the tabs
+    m_tabContent[3] = recordsView;
+    m_tabStack->addWidget(recordsView);
+    sizeToCurrentPage(m_tabStack);
 
-    // --- Assemble the normal screen ---
-    auto *layout = new QVBoxLayout;
-    layout->addLayout(titleRow);
-    layout->addWidget(m_helpLabel);
-    layout->addLayout(navBar);
-    layout->addWidget(m_backButton, 0, Qt::AlignLeft);
-    layout->addWidget(m_tabs, 1);
-    auto *central = new QWidget;
-    central->setLayout(layout);
+    m_pageArea->setParent(m_frame);
+    m_pageArea->setPage(m_pageColumn);
+    m_pageArea->bar()->setParent(m_frame);
+    m_bars->raise();
+    frame->onResize = [this] { layoutFrame(); };
+    connect(m_pageArea, &PageArea::barShownChanged, this, [this] { layoutFrame(); });
 
-    // Two top-level pages: the normal screen and Settings.
+    // Two top-level pages: the normal screen and Settings (D40: without the bars).
     m_settings = new SettingsView(m_repo);
     m_pages = new QStackedWidget;
-    m_pages->addWidget(central);              // 0: the normal screen
+    m_pages->addWidget(m_frame);              // 0: the normal screen
     m_pages->addWidget(m_settings);           // 1: Settings
     sizeToCurrentPage(m_pages);
     auto *root = new PageBackground;
@@ -386,43 +279,74 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     setCentralWidget(root);
     m_panelHost = new PanelHost(root);            // Search and Go to date appear on top of the window
     m_panelHost->setUnderlying(m_pages);
-    m_toast = new Toast(root);                    // "Deleted ... [Undo]" at the bottom
     m_transition = new ViewTransition(root);      // short fades and slides between views
     refreshMotion();
-    m_transition->setFloating({m_toast});         // the undo bar stays above, not in the pictures
-    tabClicks->wrap = [this](int index, const std::function<void()> &change) {
-        animate(m_tabs->currentWidget(),
-                index > m_tabs->currentIndex() ? ViewTransition::Kind::Forward
-                                               : ViewTransition::Kind::Backward,
-                change);
-    };
-    // Any other switch (keyboard, command menu, tour) ends a running animation at once,
-    // so an old picture never lingers over a different tab or page.
+    // K1: over both pages (erasing everything happens in Settings), above everything else
+    // (E1), and last, so Tab reaches it last.
+    m_undoBar = new UndoBar(m_backdrop, root);
+    // K1 (Chris, 2026-11-10): the bar floats over the bottom of the page and nothing moves.
+    // While it shows, its glass frosts the page under it, and a control that gets the
+    // keyboard focus is scrolled clear of it when the page can scroll (SC5).
+    connect(m_undoBar, &UndoBar::spaceChanged, this, [this](int space) {
+        m_backdrop->setPageUnderGlass(space > 0);
+        m_pageArea->setFocusClearanceBottom(space);
+        m_undoBar->update();
+    });
+    connect(m_pageArea->verticalScrollBar(), &QScrollBar::valueChanged, m_undoBar,
+            qOverload<>(&QWidget::update));
+    connect(m_backdrop, &GlassBackdrop::changed, m_undoBar, qOverload<>(&QWidget::update));
+    connect(m_pages, &QStackedWidget::currentChanged, this, [this](int page) {
+        m_undoBar->setFloating(page == 0);        // the glass has no copy of Settings: solid
+        m_undoBar->update();
+    });
+    m_transition->setFloating({m_undoBar, m_bars});   // they stay above, not in the pictures
     auto stopAnimation = [this] {
         if (!m_inAnimatedChange)
             m_transition->finish();
     };
-    connect(m_tabs, &QTabWidget::currentChanged, this, stopAnimation);
+    connect(m_tabStack, &QStackedWidget::currentChanged, this, stopAnimation);
     connect(m_pages, &QStackedWidget::currentChanged, this, stopAnimation);
 
+    // --- Wiring: the tabs ---
+    connect(m_tabButtons, &ChoiceButtons::choiceMade, this, [this](int index) {
+        if (index == m_tabStack->currentIndex())
+            return;
+        animate(m_tabStack->currentWidget(),
+                index > m_tabStack->currentIndex() ? ViewTransition::Kind::Forward
+                                                   : ViewTransition::Kind::Backward,
+                [this, index] { setActiveTab(static_cast<Tab>(index)); });
+    });
+
     // --- Wiring: navigation ---
-    connect(m_prevButton, &QPushButton::clicked, this, [this] {
+    QPushButton *prev = m_header->previousButton();
+    QPushButton *next = m_header->nextButton();
+    QPushButton *today = m_header->todayButton();
+    connect(prev, &QPushButton::clicked, this, [this] {
         animate(contentArea(), ViewTransition::Kind::Backward, [this] {
             const Period p = m_state->period(activeTab());
             m_state->setCurrentDate(PeriodMath::step(m_state->currentDate(), p, -1));
         });
     });
-    connect(m_nextButton, &QPushButton::clicked, this, [this] {
+    connect(next, &QPushButton::clicked, this, [this] {
         animate(contentArea(), ViewTransition::Kind::Forward, [this] {
             const Period p = m_state->period(activeTab());
             m_state->setCurrentDate(PeriodMath::step(m_state->currentDate(), p, +1));
         });
         tourReport("next");
     });
-    connect(m_todayButton, &QPushButton::clicked, this, [this] {
+    connect(today, &QPushButton::clicked, this, [this] {
         animate(contentArea(), towards(QDate::currentDate()), [this] {
             m_state->clearBack();
             m_state->setCurrentDate(QDate::currentDate());
+        });
+    });
+    // CAL2: the title zooms out one level: Day and Week to their month, Month to its year.
+    connect(m_header, &PageHeader::zoomOutRequested, this, [this] {
+        const Period p = m_state->period(Tab::Calendar);
+        const Period out = p == Period::Month ? Period::Year : Period::Month;
+        animate(contentArea(), ViewTransition::Kind::Backward, [this, out] {
+            m_state->clearBack();
+            m_state->setPeriod(Tab::Calendar, out);
         });
     });
 
@@ -460,22 +384,18 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     connect(yearView, &YearView::monthActivated, this,
             [openOnCalendar](const QDate &d) { openOnCalendar(Period::Month, d); });
     connect(recordsView, &RecordsView::dayActivated, this, [this](const QDate &d) {
-        animate(m_tabs->currentWidget(), ViewTransition::Kind::Forward, [this, d] {
-            m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
+        animate(m_tabStack->currentWidget(), ViewTransition::Kind::Forward, [this, d] {
+            setActiveTab(Tab::Calendar);
             m_state->openCalendar(Period::Day, d);
         });
     });
-    connect(m_backButton, &QPushButton::clicked, this, [this] {
+    connect(m_header->backButton(), &QPushButton::clicked, this, [this] {
         animate(contentArea(), ViewTransition::Kind::Backward, [this] { m_state->goBack(); });
     });
 
     // --- Wiring: editor ---
     connect(dayView, &DayView::editRequested, this, [this](const QDate &d) {
-        animate(m_calendarStack, ViewTransition::Kind::Forward, [this, d] {
-            m_editor->open(d);
-            m_editing = true;
-            refreshNav();
-        });
+        animate(m_calendarStack, ViewTransition::Kind::Forward, [this, d] { openEditor(d); });
         tourReport("editorOpened");
     });
     connect(m_editor, &EditorView::finished, this, [this, monthGrid](bool saved) {
@@ -508,12 +428,19 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     auto press = [](QPushButton *b) {
         return [b] { if (b->isVisible() && b->isEnabled()) b->click(); };
     };
-    shortcut(QKeySequence(Qt::Key_Left), press(m_prevButton));
-    shortcut(QKeySequence(Qt::Key_Right), press(m_nextButton));
-    shortcut(QKeySequence(Qt::Key_T), press(m_todayButton));
-    shortcut(QKeySequence::Find, press(m_searchButton));                    // Ctrl+F
+    shortcut(QKeySequence(Qt::Key_Left), press(prev));
+    shortcut(QKeySequence(Qt::Key_Right), press(next));
+    shortcut(QKeySequence(Qt::CTRL | Qt::Key_T), press(today));                  // KB9
+    shortcut(QKeySequence(Qt::CTRL | Qt::Key_N), [this] { openTodayEditor(); });  // D41
+    shortcut(QKeySequence::Find, press(m_searchButton));                         // Ctrl+F
     shortcut(QKeySequence(Qt::CTRL | Qt::Key_G), press(m_goToDateButton));
     shortcut(QKeySequence(Qt::CTRL | Qt::Key_K), [this] { openCommands(); });
+    // KB7: F6 moves between the toolbar, the tab row and the page (also while editing).
+    auto *f6 = new QShortcut(QKeySequence(Qt::Key_F6), this);
+    connect(f6, &QShortcut::activated, this, [this] { focusArea(+1); });
+    auto *shiftF6 = new QShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F6), this);
+    connect(shiftF6, &QShortcut::activated, this, [this] { focusArea(-1); });
+    m_shortcuts << f6 << shiftF6;
     // While a panel is open the keys belong to the panel (typing, calendar arrows).
     connect(m_panelHost, &PanelHost::opened, this, [this] {
         for (QShortcut *sc : m_shortcuts) sc->setEnabled(false);
@@ -526,7 +453,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
         else if (kind == 2) tourReport("gotoClosed");
     });
 
-    // --- Wiring: settings ---
+    // --- Wiring: settings and help ---
     connect(m_settingsButton, &QPushButton::clicked, this, [this] {
         m_settings->open();
         animate(m_pages, ViewTransition::Kind::Forward, [this] { m_pages->setCurrentIndex(1); });
@@ -546,6 +473,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
         refreshNav();
         QTimer::singleShot(0, this, &MainWindow::openTour);
     });
+    connect(m_helpButton, &QPushButton::clicked, this, &MainWindow::openGuide);
     auto *helpKey = new QShortcut(QKeySequence::HelpContents, this);       // F1, from anywhere
     connect(helpKey, &QShortcut::activated, this, &MainWindow::openGuide);
 
@@ -554,12 +482,12 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     auto *undoKey = new QShortcut(QKeySequence::Undo, this);               // Ctrl+Z
     connect(undoKey, &QShortcut::activated, this, [this] {
         if (!m_editing)                       // in a text box, Ctrl+Z belongs to the text box
-            m_toast->undo();
+            m_undoBar->undo();
     });
     connect(m_settings, &SettingsView::dataErased, this, [this](const QString &safetyCopy) {
         reloadData();
-        m_toast->showMessage("All weather data was erased. Your backups are still in the "
-                             "backups folder.", [this, safetyCopy] {
+        m_undoBar->showMessage("All weather data was erased. Your backups are still in the "
+                               "backups folder.", [this, safetyCopy] {
             if (!m_repo.replaceWith(safetyCopy)) {
                 QMessageBox::warning(this, "Weather Tracker",
                                      "Sorry, the data could not be put back.\n\n" + m_repo.lastError());
@@ -567,20 +495,20 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
             }
             AppLog::write("Erasing all weather data was undone");
             reloadData();
-            m_toast->showMessage("Your weather data is back.", nullptr);
+            m_undoBar->showMessage("Your weather data is back.", nullptr);
         });
     });
     connect(m_editor, &EditorView::erasedOnSave, this,
             [this](const QDate &date, const QString &what, const Repository::DayRecord &before) {
         const QString day = date.toString("dddd, MMMM d, yyyy");
-        m_toast->showMessage("Saved " + day + ", and removed " + what + ".",
-                             [this, date, day, before] {
+        m_undoBar->showMessage("Saved " + day + ", and removed " + what + ".",
+                               [this, date, day, before] {
             if (!m_repo.restoreDay(date, before))
                 QMessageBox::warning(this, "Weather Tracker",
                                      "Sorry, the day could not be put back completely.\n\n"
                                      + m_repo.lastError());
             reloadData();
-            m_toast->showMessage(day + " is back the way it was.", nullptr);
+            m_undoBar->showMessage(day + " is back the way it was.", nullptr);
         });
     });
 
@@ -588,37 +516,27 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     connect(m_state, &AppState::currentDateChanged, this, &MainWindow::refreshNav);
     connect(m_state, &AppState::periodChanged, this, &MainWindow::refreshNav);
     connect(m_state, &AppState::backChanged, this, &MainWindow::refreshNav);
-    connect(m_tabs, &QTabWidget::currentChanged, this, [this] {
-        refreshNav();
-        refreshHelp();
-    });
-    connect(m_helpButton, &QPushButton::toggled, this, [this](bool on) {
-        m_repo.setSetting("help_visible", on ? "1" : "0");
-        refreshHelp();
-    });
+    connect(m_tabStack, &QStackedWidget::currentChanged, this, &MainWindow::refreshNav);
 
-    // --- Theme: help text colour, and the Add today button ---
-    auto restyle = [this] {
-        const auto c = ThemeManager::instance()->colors();
-        m_helpLabel->setStyleSheet(QString("color: %1;").arg(c.mutedText.name()));
-    };
-    restyle();
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, restyle);
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this,
-            &MainWindow::refreshAddToday);
+    // --- Theme: the glass copies and the Add today button ---
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, [this] {
+        m_backdrop->invalidateBackground();
+        refreshAddToday();
+        layoutFrame();
+        m_frame->update();
+    });
 
     refreshNav();
-    refreshHelp();
-    resize(Design::kCheckedWindowWidth, Design::kCheckedWindowHeight);                        // set again now that all pages exist
+    resize(Design::kCheckedWindowWidth, Design::kCheckedWindowHeight);   // set again now that all pages exist
 
     // Remember the window: its size and place, and the tab she was on.
     const QByteArray geometry = QByteArray::fromBase64(m_repo.setting("window_geometry").toLatin1());
     if (!geometry.isEmpty())
         restoreGeometry(geometry);
     const int lastTab = m_repo.setting("last_tab", "0").toInt();
-    if (lastTab >= 0 && lastTab < m_tabs->count())
-        m_tabs->setCurrentIndex(lastTab);
-    connect(m_tabs, &QTabWidget::currentChanged, this, [this](int index) {
+    if (lastTab >= 0 && lastTab < m_tabStack->count())
+        setActiveTab(static_cast<Tab>(lastTab));
+    connect(m_tabStack, &QStackedWidget::currentChanged, this, [this](int index) {
         m_repo.setSetting("last_tab", QString::number(index));
         tourReport(QString("tab%1").arg(index));
     });
@@ -631,7 +549,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
         m_repo.removeSetting("undo_replace");
         if (QFileInfo::exists(undoReplace))
             QTimer::singleShot(0, this, [this, undoReplace] {
-                m_toast->showMessage("Your weather data was replaced.", [this, undoReplace] {
+                m_undoBar->showMessage("Your weather data was replaced.", [this, undoReplace] {
                     if (!m_repo.replaceWith(undoReplace)) {
                         QMessageBox::warning(this, "Weather Tracker",
                                              "Sorry, the data could not be put back.\n\n"
@@ -662,13 +580,158 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     m_dayTimer->start();
 }
 
+// ---------------- The frame ----------------
+
+void MainWindow::layoutFrame()
+{
+    const int w = m_frame->width(), h = m_frame->height();
+    if (w <= 0 || h <= 0 || !m_undoBar)
+        return;
+    m_undoBar->place();                                // K1: over the page, which never moves
+    const int barsH = m_bars->heightFor(w);
+    // G14: the bars float while they take at most a third of the window's height.
+    const bool floating = barsH <= h / 3;
+    if (floating != m_bars->isFloating() || (floating && m_bars->parentWidget() != m_frame)) {
+        if (floating) {
+            m_bars->setParent(m_frame);
+            m_pageArea->barsSlot()->hide();
+        } else {
+            m_pageArea->barsSlot()->layout()->addWidget(m_bars);
+            m_pageArea->barsSlot()->show();
+        }
+        m_bars->setFloating(floating);
+        m_bars->show();
+    }
+    const int sbw = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, m_pageArea->bar());
+    const bool barShown = !m_pageArea->bar()->isHidden();
+    const int right = barShown ? std::max(Design::kWindowMargin, sbw) : Design::kWindowMargin;
+    m_pageArea->setGeometry(0, 0, w, h);
+    if (floating) {
+        m_bars->setGeometry(0, 0, w, barsH);
+        m_pageArea->setPageMargins(barsH, right);          // L9: 16 below the tab row
+        m_pageArea->setFocusClearance(m_bars->barsBottom());
+        const int top = barsH - Design::kBarToPage;        // the scroll bar starts below the tab row
+        m_pageArea->bar()->setGeometry(w - sbw, top, sbw, std::max(0, h - top));
+        m_bars->raise();
+    } else {
+        m_pageArea->setPageMargins(0, right);
+        m_pageArea->setFocusClearance(0);
+        m_pageArea->bar()->setGeometry(w - sbw, 0, sbw, h);
+    }
+    m_pageArea->bar()->raise();
+    m_undoBar->raise();
+    if (m_frame->size() != m_backdropSize) {          // G11: the background's copy fits the window
+        m_backdropSize = m_frame->size();
+        m_backdrop->invalidateBackground();
+    }
+    // Changing the window's minimum from inside its own resize can leave the page behind,
+    // so it waits for the event loop.
+    QTimer::singleShot(0, this, &MainWindow::updateMinimumSize);
+}
+
+void MainWindow::updateMinimumSize()
+{
+    // Z5: 636 x 320 layout px. A page that can't reflow that far yet (its new layout comes
+    // in a later delivery) holds the window as wide as it needs, so nothing is ever cut off.
+    const int sbw = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, m_pageArea->bar());
+    const int page = m_pageColumn->minimumSizeHint().width() + Design::kWindowMargin
+                   + std::max(Design::kWindowMargin, sbw);
+    const QSize wanted(std::max(Design::kMinWindowWidth, page), Design::kMinWindowHeight);
+    if (minimumSize() != wanted)
+        setMinimumSize(wanted);
+}
+
+void MainWindow::focusArea(int step)
+{
+    if (m_pages->currentIndex() != 0 || m_panelHost->isOpen() || m_tour)
+        return;
+    // The first control of each area she can reach.
+    auto firstIn = [](QWidget *area) -> QWidget * {
+        if (auto *choices = qobject_cast<ChoiceButtons *>(area))
+            for (QAbstractButton *b : choices->buttons())
+                if (b->isChecked() && b->isEnabled() && b->isVisible())
+                    return b;
+        for (QWidget *w : area->findChildren<QWidget *>())
+            if (w->isVisible() && w->isEnabled() && (w->focusPolicy() & Qt::TabFocus))
+                return w;
+        return nullptr;
+    };
+    const QList<QWidget *> areas{m_bars, m_tabButtons, m_pageColumn};
+    auto targetOf = [&](int i) -> QWidget * {
+        if (i == 0) {
+            for (GlassGroup *g : {m_addGroup, m_findGroup, m_appGroup})
+                if (QWidget *w = firstIn(g))
+                    return w;
+            return nullptr;
+        }
+        return firstIn(areas[i]);
+    };
+    int current = 2;
+    if (QWidget *f = focusWidget()) {
+        if (m_tabButtons->isAncestorOf(f) || m_tabGroup->isAncestorOf(f))
+            current = 1;
+        else if (m_bars->isAncestorOf(f))
+            current = m_tabGroup->isAncestorOf(f) ? 1 : 0;
+        for (GlassGroup *g : m_selectorGroups)
+            if (g->isAncestorOf(f))
+                current = 1;
+    }
+    for (int n = 1; n <= 3; ++n) {
+        const int i = ((current + step * n) % 3 + 3) % 3;
+        if (QWidget *w = targetOf(i)) {
+            w->setFocus(Qt::TabFocusReason);
+            return;
+        }
+    }
+}
+
+bool MainWindow::focusNextPrevChild(bool next)
+{
+    // KB8: on the main screen Tab stops at the last control instead of going round again.
+    // The undo bar floats outside the frame, so the chain is taken over the whole window area.
+    QWidget *now = focusWidget();
+    QWidget *area = centralWidget();
+    if (now && area && m_pages->currentIndex() == 0 && area->isAncestorOf(now)) {
+        QList<QWidget *> chain;
+        QWidget *w = area;
+        do {
+            w = w->nextInFocusChain();
+            if (area->isAncestorOf(w) && w->isVisible() && w->isEnabled()
+                && (w->focusPolicy() & Qt::TabFocus))
+                chain << w;
+        } while (w != area && chain.size() < 2000);
+        if (!chain.isEmpty() && ((next && now == chain.last()) || (!next && now == chain.first())))
+            return true;
+    }
+    return QMainWindow::focusNextPrevChild(next);
+}
+
+void MainWindow::changeEvent(QEvent *event)
+{
+    // G9: Windows' transparency and battery saver may have changed while she was away.
+    if (event->type() == QEvent::ActivationChange && isActiveWindow()) {
+        Glass::refreshSystem();
+        m_bars->update();
+        m_undoBar->update();
+    }
+    QMainWindow::changeEvent(event);
+}
+
+void MainWindow::setActiveTab(Tab tab)
+{
+    m_tabStack->setCurrentIndex(static_cast<int>(tab));
+    m_tabButtons->setChosen(static_cast<int>(tab));
+}
+
 Tab MainWindow::activeTab() const
 {
-    return static_cast<Tab>(m_tabs->currentIndex());
+    return static_cast<Tab>(m_tabStack->currentIndex());
 }
 
 void MainWindow::checkNewDay()
 {
+    Glass::refreshSystem();                   // G9: battery saver may have come on
+    m_bars->update();
     const QDate before = m_state->today();
     if (!m_state->refreshToday())
         return;
@@ -719,7 +782,7 @@ void MainWindow::resetForTour()
     if (m_editing)
         m_editor->abandon();
     m_pages->setCurrentIndex(0);
-    m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
+    setActiveTab(Tab::Calendar);
     m_state->clearBack();
     m_state->setPeriod(Tab::Calendar, Period::Month);
     m_state->setCurrentDate(QDate::currentDate());
@@ -743,10 +806,10 @@ void MainWindow::openTour()
                 return {TourTarget{m_editor, false}, TourTarget{m_editor->cancelButton(), true}};
             return {TourTarget{m_addTodayButton, true}};
         case 2:
-            return {TourTarget{m_selectors[0], true}, TourTarget{m_nextButton, true},
+            return {TourTarget{m_selectorGroups[0], true}, TourTarget{m_header->nextButton(), true},
                     TourTarget{m_calendarStack, false}};
         case 3:
-            return {TourTarget{m_tabs->tabBar(), true}};
+            return {TourTarget{m_tabGroup, true}};
         case 4:
             return {TourTarget{m_searchButton, true}, TourTarget{m_goToDateButton, true}};
         case 5:
@@ -786,8 +849,8 @@ void MainWindow::openSearch()
     connect(panel, &SearchPanel::closeRequested, m_panelHost, &PanelHost::closePanel);
     connect(panel, &SearchPanel::dayChosen, this, [this](const QDate &d) {
         m_panelHost->closePanel();
-        animate(m_tabs->currentWidget(), ViewTransition::Kind::Forward, [this, d] {
-            m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
+        animate(m_tabStack->currentWidget(), ViewTransition::Kind::Forward, [this, d] {
+            setActiveTab(Tab::Calendar);
             m_state->openCalendar(Period::Day, d);
         });
     });
@@ -800,14 +863,22 @@ void MainWindow::openSearch()
 
 void MainWindow::openTodayEditor()
 {
+    if (m_editing)
+        return;
     m_state->clearBack();
     m_state->setPeriod(Tab::Calendar, Period::Day);
     m_state->setCurrentDate(QDate::currentDate());
-    m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
-    m_editor->open(QDate::currentDate());
+    setActiveTab(Tab::Calendar);
+    openEditor(QDate::currentDate());
+    tourReport("editorOpened");
+}
+
+void MainWindow::openEditor(const QDate &date)
+{
+    m_undoBar->forget();                      // K1: a new change starts; the old undo goes
+    m_editor->open(date);
     m_editing = true;
     refreshNav();
-    tourReport("editorOpened");
 }
 
 void MainWindow::openCommands()
@@ -815,11 +886,11 @@ void MainWindow::openCommands()
     if (m_panelHost->isOpen() || m_editing || m_tour)
         return;
     auto tab = [this](Tab t) {
-        return [this, t] { m_tabs->setCurrentIndex(static_cast<int>(t)); };
+        return [this, t] { setActiveTab(t); };
     };
     auto show = [this](Period p) {
         return [this, p] {
-            m_tabs->setCurrentIndex(static_cast<int>(Tab::Calendar));
+            setActiveTab(Tab::Calendar);
             m_state->clearBack();
             m_state->setPeriod(Tab::Calendar, p);
         };
@@ -829,18 +900,17 @@ void MainWindow::openCommands()
     };
     const bool recorded = m_repo.weatherFor(m_state->today()).has_value();
     QList<Command> commands = {
-        {recorded ? "Edit today's weather" : "Add today's weather", "", "new write enter record",
+        {recorded ? "Edit today's weather" : "Add today's weather", "Ctrl+N", "new write enter record",
          [this] { openTodayEditor(); }},
         {"Show one day", "", "calendar", show(Period::Day)},
         {"Show a week", "", "calendar", show(Period::Week)},
         {"Show a month", "", "calendar", show(Period::Month)},
         {"Show a year", "", "calendar", show(Period::Year)},
-        {"Go back", "Left arrow", "previous earlier", press(m_prevButton)},
-        {"Go forward", "Right arrow", "next later", press(m_nextButton)},
-        {"Go to today", "T", "now this", press(m_todayButton)},
+        {"Go back", "Left arrow", "previous earlier", press(m_header->previousButton())},
+        {"Go forward", "Right arrow", "next later", press(m_header->nextButton())},
+        {"Go to today", "Ctrl+T", "now this", press(m_header->todayButton())},
         {"Go to a date", "Ctrl+G", "jump find day", [this] { openGoToDate(); }},
         {"Search notes and events", "Ctrl+F", "find look", [this] { openSearch(); }},
-        {"Undo the last delete", "Ctrl+Z", "back restore", [this] { m_toast->undo(); }},
         {"Open the Calendar tab", "", "", tab(Tab::Calendar)},
         {"Open the Analytics tab", "", "averages totals numbers", tab(Tab::Analytics)},
         {"Open the Charts tab", "", "graph lines", tab(Tab::Charts)},
@@ -848,18 +918,20 @@ void MainWindow::openCommands()
         {"Back up now", "", "backup copy save", [this] {
              QString error;
              if (Backups::backupNow(m_repo, &error))
-                 m_toast->showMessage("A backup was saved.", nullptr);
+                 m_undoBar->showMessage("A backup was saved.", nullptr);
              else
                  QMessageBox::warning(this, "Weather Tracker",
                                       "Sorry, the backup could not be made.\n\n" + error);
          }},
         {"Open Settings", "", "options units text size look backup privacy",
          press(m_settingsButton)},
-        {"Show or hide the tips", "", "help hints", [this] { m_helpButton->toggle(); }},
         {"Open the user guide", "F1", "help manual", [this] { openGuide(); }},
         {"Show the tour again", "", "help welcome", [this] { openTour(); }},
     };
 
+    if (m_undoBar->canUndo())                 // K1: the last action stays undoable
+        commands.insert(1, {"Undo: " + m_undoBar->undoLabel(), "Ctrl+Z", "back restore put back",
+                            [this] { m_undoBar->undo(); }});
     auto *panel = new CommandPanel(commands);
     connect(panel, &CommandPanel::closeRequested, m_panelHost, &PanelHost::closePanel);
     connect(panel, &CommandPanel::chosen, this, [this](const Command &command) {
@@ -891,76 +963,57 @@ void MainWindow::openGoToDate()
 
 void MainWindow::refreshNav()
 {
-    const Period p = m_state->period(activeTab());
+    const Tab tab = activeTab();
+    const Period p = m_state->period(tab);
     const QDate date = m_state->currentDate();
     const QDate today = m_state->today();
+    const QString unit = unitWord(p);
 
-    m_dateLabel->setText(PeriodMath::title(date, p));
-    m_prevButton->setText("Previous " + unitWord(p));
-    m_nextButton->setText("Next " + unitWord(p));
-    m_todayButton->setText(goToText(p));
+    // The header (plan 2.1). The title zooms out on the Calendar's Day, Week and Month (CAL2).
+    const bool zoomable = tab == Tab::Calendar && !m_editing
+        && (p == Period::Day || p == Period::Week || p == Period::Month);
+    const QString zoomTip = zoomable ? (p == Period::Month ? "Show the whole year" : "Show the whole month")
+                                     : QString();
+    m_header->setPeriodTitle(date, p, zoomTip);           // T5: in columns, so it doesn't jump
+    QPushButton *prev = m_header->previousButton();
+    QPushButton *next = m_header->nextButton();
+    QPushButton *todayButton = m_header->todayButton();
+    prev->setToolTip(QString("Previous %1 (Left arrow)").arg(unit));
+    next->setToolTip(QString("Next %1 (Right arrow)").arg(unit));
+    const bool onToday = PeriodMath::startOf(date, p) == PeriodMath::startOf(today, p);
+    todayButton->setToolTip(!onToday ? goToText(p) + " (Ctrl+T)"
+                            : p == Period::Day ? QString("You are already on today (Ctrl+T)")
+                                               : QString("You are already on this %1 (Ctrl+T)").arg(unit));   // ST5
+    m_header->setNavigationShown(p != Period::All);       // "All time" has nothing to step through
 
-    // All three buttons get the same fixed width: the widest any of them needs, for any
-    // period. Each text is tried on the real button, so the style's padding and the arrow
-    // font are included. The text stays centered.
-    int widest = 0;
-    const QString keepPrev = m_prevButton->text();
-    const QString keepNext = m_nextButton->text();
-    const QString keepToday = m_todayButton->text();
-    for (Period q : {Period::Day, Period::Week, Period::Month, Period::Season, Period::Year}) {
-        m_prevButton->setText("Previous " + unitWord(q));
-        m_nextButton->setText("Next " + unitWord(q));
-        m_todayButton->setText(goToText(q));
-        for (auto *b : {m_prevButton, m_nextButton, m_todayButton})
-            widest = qMax(widest, b->sizeHint().width());
-    }
-    m_prevButton->setText(keepPrev);
-    m_nextButton->setText(keepNext);
-    m_todayButton->setText(keepToday);
-    for (auto *b : {m_prevButton, m_nextButton, m_todayButton})
-        b->setFixedWidth(widest);
-
-    // While editing, navigation is locked so nothing can be lost.
-    m_todayButton->setEnabled(!m_editing &&
-        PeriodMath::startOf(date, p) != PeriodMath::startOf(today, p));
-    m_prevButton->setEnabled(!m_editing);
-    const bool showNav = p != Period::All;          // "All time" has nothing to step through
-    for (auto *b : {m_prevButton, m_nextButton, m_todayButton})
-        b->setVisible(showNav);
-    m_nextButton->setEnabled(!m_editing);
-    m_selectors[0]->setEnabled(!m_editing);
-    m_settingsButton->setEnabled(!m_editing);
-    m_searchButton->setEnabled(!m_editing);
-    m_goToDateButton->setEnabled(!m_editing);
-    m_tabs->tabBar()->setEnabled(!m_editing);
-
-    for (int i = 0; i < 4; ++i)
+    // While editing, the bars and the header are locked so nothing can be lost.
+    todayButton->setEnabled(!m_editing && !onToday);
+    prev->setEnabled(!m_editing);
+    next->setEnabled(!m_editing);
+    for (GlassGroup *g : {m_addGroup, m_findGroup, m_appGroup, m_tabGroup})
+        g->setEnabled(!m_editing);
+    for (int i = 0; i < 4; ++i) {
+        m_selectorGroups[i]->setEnabled(!m_editing);
+        m_selectorGroups[i]->setVisible(i == static_cast<int>(tab));
         m_selectors[i]->setPeriod(m_state->period(static_cast<Tab>(i)));
+    }
+    m_tabButtons->setChosen(static_cast<int>(tab));
 
     m_calendarStack->setCurrentIndex(
         m_editing ? 4 : calendarIndex(m_state->period(Tab::Calendar)));
 
     const auto back = m_state->backTarget();
-    m_backButton->setVisible(back.has_value() && activeTab() == Tab::Calendar && !m_editing);
-    if (back)
-        m_backButton->setText("Back to " + PeriodMath::title(back->date, back->period));
+    const bool showBack = back.has_value() && tab == Tab::Calendar && !m_editing;
+    m_header->setBack(showBack ? "Back to " + PeriodMath::title(back->date, back->period) : QString());
 
     refreshAddToday();
+    m_backdrop->invalidate();                 // G11: the page changed
+    layoutFrame();                            // this tab's choice may change the bars' size
 }
 
 void MainWindow::refreshAddToday()
 {
     const QDate today = m_state->today();
-    const bool onTodaysDayView = activeTab() == Tab::Calendar
-        && m_state->period(Tab::Calendar) == Period::Day
-        && m_state->currentDate() == today;
-    const bool show = activeTab() == Tab::Calendar && !m_editing && !onTodaysDayView;
-    m_addTodayButton->parentWidget()->setVisible(show);
-    m_addTodayButton->setVisible(show);
-    if (!show)
-        return;
-    m_addTodayButton->setFixedHeight(Design::kTarget);
-
     const bool recorded = m_repo.weatherFor(today).has_value()
         || !m_repo.note(today).trimmed().isEmpty()
         || !m_repo.events(today).isEmpty();
@@ -968,11 +1021,12 @@ void MainWindow::refreshAddToday()
     // The main daily action: always the primary button (B1, B2), with its own icon (I3).
     const QString addText = QStringLiteral("Add today's weather");
     const QString editText = QStringLiteral("Edit today's weather");
-    m_addTodayButton->setProperty("wtKind", "primary");
     m_addTodayButton->setText(recorded ? editText : addText);
     m_addTodayButton->setIcon(Icons::icon(recorded ? "calendar_edit" : "calendar_add"));
+    m_addTodayButton->setToolTip(QString("%1 (Ctrl+N)").arg(recorded ? "Change what you recorded today"
+                                                                     : "Record today's weather"));
 
-    // Same width whichever text is showing, so the buttons beside it don't move.
+    // Same width whichever text is showing, so the groups beside it don't move.
     const QString keep = m_addTodayButton->text();
     m_addTodayButton->setFixedWidth(QWIDGETSIZE_MAX);              // release before measuring
     int widest = 0;
@@ -983,24 +1037,6 @@ void MainWindow::refreshAddToday()
     m_addTodayButton->setText(keep);
     m_addTodayButton->setFixedWidth(widest);
     m_addTodayButton->update();
-}
-
-void MainWindow::refreshHelp()
-{
-    static const char *const hints[4] = {
-        "Calendar: choose Day, Week, Month or Year with the \"Show:\" buttons. "
-        "Use the Previous and Next buttons, or the Left and Right arrow keys, to move around. "
-        "Press T for today. Press F1 for the user guide, or Ctrl+K for a list of everything "
-        "you can do.",
-        "Analytics: choose a period with the \"Numbers for:\" buttons to see "
-        "averages and totals for it.",
-        "Charts: choose Month, Season or Year to see temperature and "
-        "precipitation drawn as charts.",
-        "Records: the hottest, coldest and wettest days, streaks, and hot and cold "
-        "day counts. Click a row with an arrow to open that day."
-    };
-    m_helpLabel->setText(hints[m_tabs->currentIndex()]);
-    m_helpLabel->setVisible(m_helpButton->isChecked());
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -1031,12 +1067,12 @@ void MainWindow::deleteDay(const QDate &date)
     }
     reloadData();
     const QString day = date.toString("dddd, MMMM d, yyyy");
-    m_toast->showMessage("Deleted everything recorded for " + day + ".",
+    m_undoBar->showMessage("Deleted everything recorded for " + day + ".",
                          [this, date, day, before] {
         const bool ok = m_repo.restoreDay(date, before);
         reloadData();
         if (ok)
-            m_toast->showMessage(day + " is back.", nullptr);
+            m_undoBar->showMessage(day + " is back.", nullptr);
         else
             QMessageBox::warning(this, "Weather Tracker",
                                  "Sorry, the day could not be put back completely.\n\n"
@@ -1046,6 +1082,7 @@ void MainWindow::deleteDay(const QDate &date)
 
 void MainWindow::reloadData()
 {
+    m_backdrop->invalidate();                 // G11: new data on the page
     m_monthGrid->reloadData();
     m_dayView->reload();                      // the other views reload when they are shown
     refreshAddToday();
@@ -1060,8 +1097,8 @@ void MainWindow::animate(QWidget *area, ViewTransition::Kind kind, const std::fu
         return;
     }
     m_transition->capture(area);
-    if (m_toast->isVisible())
-        m_toast->raise();                     // the undo bar stays above the fading picture
+    if (m_undoBar->isVisible())
+        m_undoBar->raise();                   // the undo bar stays above the fading picture
     m_inAnimatedChange = true;
     change();
     m_inAnimatedChange = false;
@@ -1076,7 +1113,7 @@ ViewTransition::Kind MainWindow::towards(const QDate &date) const
 
 QWidget *MainWindow::contentArea() const
 {
-    return m_tabContent[std::size_t(m_tabs->currentIndex())];
+    return m_tabContent[std::size_t(m_tabStack->currentIndex())];
 }
 
 void MainWindow::refreshMotion()

@@ -14,10 +14,14 @@
 #include <utility>
 #include <QCheckBox>
 #include <QGroupBox>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QScrollBar>
+#include <QStyleOptionComboBox>
 
 #include "Confirm.h"
+#include "Design.h"
+#include "Icons.h"
 #include "EventTypes.h"
 #include "NumberField.h"
 #include "Repository.h"
@@ -43,6 +47,29 @@ protected:
     void wheelEvent(QWheelEvent *event) override
     {
         event->ignore();
+    }
+
+    // The arrow that marks a drop-down: Fluent's chevron (I3) in the text colour, at the
+    // right edge, 12 px in (S1), instead of the old raised arrow button. The stylesheet
+    // leaves the drop-down's area empty for it (ThemeManager).
+    void paintEvent(QPaintEvent *event) override
+    {
+        QComboBox::paintEvent(event);
+        QStyleOptionComboBox opt;
+        initStyleOption(&opt);
+        const QRect area = style()->subControlRect(QStyle::CC_ComboBox, &opt,
+                                                   QStyle::SC_ComboBoxArrow, this);
+        const auto colors = ThemeManager::instance()->colors();
+        const int s = Design::kIconInText;
+        // Fluent's chevron pointing right, turned to point down.
+        const QPixmap right = Icons::pixmap("chevron_right", s,
+                                            isEnabled() ? colors.text : colors.disabledText,
+                                            false, devicePixelRatioF());
+        QPainter p(this);
+        p.setRenderHint(QPainter::SmoothPixmapTransform);
+        p.translate(area.right() + 1 - s / 2.0, area.center().y() + 0.5);
+        p.rotate(90);
+        p.drawPixmap(QPointF(-s / 2.0, -s / 2.0), right);
     }
 };
 
@@ -462,4 +489,4 @@ void EditorView::save()
         emit erasedOnSave(m_date, what, before);
     }
     emit finished(true);
-}
+}

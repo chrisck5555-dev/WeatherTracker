@@ -240,6 +240,17 @@ QSet<QString> Repository::events(const QDate &date) const
     return keys;
 }
 
+bool Repository::snowCoverOn(const QDate &date) const
+{
+    QSqlQuery q(QSqlDatabase::database(m_conn, false));
+    q.prepare("SELECT key FROM events WHERE key IN ('snow_cover_starts', 'all_melted')"
+              " AND date <= ? AND date >= ?"
+              " ORDER BY date DESC, key = 'all_melted' DESC LIMIT 1");
+    q.addBindValue(iso(date));
+    q.addBindValue(iso(date.addDays(-(kSnowCoverDays - 1))));
+    return q.exec() && q.next() && q.value(0).toString() == "snow_cover_starts";
+}
+
 bool Repository::saveEvents(const QDate &date, const QSet<QString> &keys)
 {
     QSqlDatabase db = QSqlDatabase::database(m_conn, false);

@@ -4,7 +4,7 @@
 //
 // Opens every screen of the program (with a throwaway data file) and checks its widgets
 // against the design rules:
-//   - at Normal text in the soft light look, at every window width from 512 to 2560 in
+//   - at Normal text in the soft light look, at every window width from the smallest (Z5) to 2560 in
 //     8 px steps, at three heights
 //   - at named window shapes (Snap halves and quarters, common screens, portrait, ultrawide)
 //     in every text size and all four looks
@@ -47,6 +47,8 @@
 #include "MainWindow.h"
 #include "Repository.h"
 #include "TextSize.h"
+#include "ChoiceButtons.h"
+#include "PeriodSelector.h"
 #include "ThemeManager.h"
 #include "Typography.h"
 #include "WeatherDay.h"
@@ -121,7 +123,7 @@ private:
     QMap<Key, QSet<QString>> m_items;
 };
 
-// Widths are reported as ranges: "512-1000, 1200".
+// Widths are reported as ranges: "636-1000, 1200".
 QString widthRanges(QList<int> widths)
 {
     std::sort(widths.begin(), widths.end());
@@ -200,7 +202,9 @@ void checkWindow(QWidget *window, const QString &screen, const QString &where, F
             textSizes.insert(QFontInfo(w->font()).pixelSize());
     }
 
-    // Overlaps between neighbours (widgets with the same parent).
+    // Overlaps between neighbours (widgets with the same parent). The floating bars, the
+    // undo bar and the page's scroll bar are drawn over the page on purpose (G14, K1, SC2).
+    auto floats = [](QWidget *w) { return w->property("wtFloats").toBool(); };
     for (QWidget *parent : widgets + QList<QWidget *>{window}) {
         if (!shownIn(parent, window) && parent != window)
             continue;
@@ -212,6 +216,8 @@ void checkWindow(QWidget *window, const QString &screen, const QString &where, F
                 kids << k;
         for (int i = 0; i < kids.size(); ++i)
             for (int j = i + 1; j < kids.size(); ++j) {
+                if (floats(kids[i]) || floats(kids[j]))
+                    continue;
                 const QRect both = kids[i]->geometry() & kids[j]->geometry();
                 if (both.width() > 1 && both.height() > 1)
                     f.add(screen, "RZ3 overlap",
@@ -226,7 +232,7 @@ void checkWindow(QWidget *window, const QString &screen, const QString &where, F
         auto *box = qobject_cast<QBoxLayout *>(w->layout());
         if (!box)
             continue;
-        const QMargins m = box->contentsMargins();
+        const QMargins m = w->property("wtPlacement").toBool() ? QMargins() : box->contentsMargins();
         for (int v : {m.left(), m.top(), m.right(), m.bottom()})
             if (!Design::onSpacingScale(v)) {
                 f.add(screen, "S1 spacing off the scale",
@@ -235,19 +241,41 @@ void checkWindow(QWidget *window, const QString &screen, const QString &where, F
             }
         const bool across = box->direction() == QBoxLayout::LeftToRight
                          || box->direction() == QBoxLayout::RightToLeft;
-        QList<QWidget *> items;
-        for (int i = 0; i < box->count(); ++i)
-            if (QWidget *k = box->itemAt(i)->widget(); k && shownIn(k, window))
-                items << k;
-        std::sort(items.begin(), items.end(), [across](QWidget *a, QWidget *b) {
-            return across ? a->x() < b->x() : a->y() < b->y();
-        });
+        // Neighbours in the layout's order: widgets and nested layouts. A gap with a stretch
+        // between is room left over, not a set gap, so it isn't checked.
+        struct Item { QRect rect; QString name; bool afterStretch; };
+        QList<Item> items;
+        bool stretch = false;
+        for (int i = 0; i < box->count(); ++i) {
+            QLayoutItem *it = box->itemAt(i);
+            if (it->spacerItem()) {
+                if (it->expandingDirections() & (across ? Qt::Horizontal : Qt::Vertical))
+                    stretch = true;
+                continue;
+            }
+            if (QWidget *k = it->widget()) {
+                if (!shownIn(k, window))
+                    continue;
+                items << Item{k->geometry(), describe(k), stretch};
+            } else if (QLayout *l = it->layout()) {
+                if (l->isEmpty() || l->geometry().isEmpty())
+                    continue;
+                items << Item{l->geometry(), QString("a row of controls"), stretch};
+            } else {
+                continue;
+            }
+            stretch = false;
+        }
         for (int i = 0; i + 1 < items.size(); ++i) {
-            const int gap = across ? items[i + 1]->x() - (items[i]->x() + items[i]->width())
-                                   : items[i + 1]->y() - (items[i]->y() + items[i]->height());
+            if (items[i + 1].afterStretch)
+                continue;
+            const QRect &a = items[i].rect, &b = items[i + 1].rect;
+            const int gap = across ? (box->direction() == QBoxLayout::RightToLeft ? a.x() - (b.x() + b.width())
+                                                                                 : b.x() - (a.x() + a.width()))
+                                   : b.y() - (a.y() + a.height());
             if (gap > 0 && !Design::onSpacingScale(gap))
                 f.add(screen, "S1 spacing off the scale",
-                      QString("%1 px between %2 and %3").arg(gap).arg(describe(items[i]), describe(items[i + 1])),
+                      QString("%1 px between %2 and %3").arg(gap).arg(items[i].name, items[i + 1].name),
                       where);
         }
     }
@@ -270,6 +298,20 @@ QPushButton *findButton(QWidget *root, const QString &text)
     return nullptr;
 }
 
+// The tabs are checkable buttons in the tab row (L10).
+bool openTab(QWidget *root, const QString &name)
+{
+    for (auto *b : root->findChildren<QPushButton *>())
+        if (b->isCheckable() && b->text() == name && qobject_cast<ChoiceButtons *>(b->parentWidget())
+            && !qobject_cast<PeriodSelector *>(b->parentWidget())) {
+            if (!b->isChecked())
+                b->click();
+            settle();
+            return true;
+        }
+    return false;
+}
+
 struct Screen {
     QString name;
     std::function<bool(QWidget *)> open;    // false if it couldn't be opened
@@ -287,13 +329,11 @@ QList<Screen> screens()
     for (int t = 0; t < tabNames.size(); ++t)
         for (const QString &p : periods[t])
             list << Screen{tabNames[t] + ": " + p,
-                           [t, p](QWidget *w) {
-                               auto *tabs = w->findChild<QTabWidget *>();
-                               if (!tabs) return false;
-                               tabs->setCurrentIndex(t);
-                               settle();
-                               for (auto *b : tabs->currentWidget()->findChildren<QPushButton *>())
-                                   if (b->isCheckable() && b->text().startsWith(p) && b->isVisibleTo(w)) {
+                           [t, p, tabNames](QWidget *w) {
+                               if (!openTab(w, tabNames[t])) return false;
+                               for (auto *b : w->findChildren<QPushButton *>())
+                                   if (b->isCheckable() && qobject_cast<PeriodSelector *>(b->parentWidget())
+                                       && b->text().startsWith(p) && b->isVisibleTo(w)) {
                                        b->click();
                                        settle();
                                        return true;
@@ -303,9 +343,7 @@ QList<Screen> screens()
                            [](QWidget *) {}};
     list << Screen{"Editor",
                    [](QWidget *w) {
-                       auto *tabs = w->findChild<QTabWidget *>();
-                       if (tabs) tabs->setCurrentIndex(0);
-                       settle();
+                       openTab(w, "Calendar");
                        QPushButton *b = findButton(w, "today's weather");
                        if (!b) return false;
                        b->click();
@@ -506,7 +544,7 @@ int runChild(const QString &sizeName)
     };
     if (size == TextSize::Size::Normal) {
         report("");
-        report("Width sweep (soft light, 512 to 2560 wide in 8 px steps, 384 / 705 / 1017 high):");
+        report(QString("Width sweep (soft light, %1 to 2560 wide in 8 px steps, 384 / 705 / 1017 high):").arg(Design::kMinWindowWidth));
         write(sweep, true);
     }
     report("");

@@ -8,12 +8,16 @@
 #include <QRadioButton>
 #include <QStyleOptionButton>
 #include <QStyleOptionTab>
+#include <QStyleOptionSlider>
+#include <QPolygonF>
 #include <QTabBar>
 #include <QVariantAnimation>
 #include <algorithm>
+#include <cmath>
 
 #include "ClayPaint.h"
 #include "Design.h"
+#include "Display.h"
 #include "Icons.h"
 #include "Motion.h"
 #include "ThemeManager.h"
@@ -502,7 +506,122 @@ int ClayStyle::pixelMetric(PixelMetric metric, const QStyleOption *opt, const QW
     case PM_TabBarTabShiftHorizontal:
     case PM_TabBarTabShiftVertical:
         return 0;
+    case PM_ScrollBarExtent:
+    case PM_ScrollBarSliderMin:
+        return Display::scrollBarWidth();          // SC2: Windows' own width (17 unless changed)
     default:
         return QProxyStyle::pixelMetric(metric, opt, w);
     }
+}
+
+// --- Scroll bars (SC2, D59) -----------------------------------------------------------------
+// Laid out and behaving like Windows': Windows' own width, an arrow button at each end, the
+// track between, and Qt's standard dragging, track clicks, held arrows and right-click menu.
+// Drawn rounded and in the look's colours: the thumb is a pill (R3) in the text box outline
+// role (3:1 against the page, C1), darker on hover and when dragged; the arrows' hover and
+// press highlight is a rounded square (R2: a control's 8, at most half its side).
+
+QRect ClayStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex *opt, SubControl sc,
+                                const QWidget *w) const
+{
+    const auto *sb = qstyleoption_cast<const QStyleOptionSlider *>(opt);
+    if (cc != CC_ScrollBar || !sb)
+        return QProxyStyle::subControlRect(cc, opt, sc, w);
+    const bool vertical = sb->orientation == Qt::Vertical;
+    const QRect r = sb->rect;
+    const int length = vertical ? r.height() : r.width();
+    const int thickness = vertical ? r.width() : r.height();
+    const int button = std::min(thickness, length / 2);          // square arrow buttons
+    const int track = std::max(0, length - 2 * button);
+    int thumb = track;
+    if (sb->maximum > sb->minimum) {
+        const double total = double(sb->maximum - sb->minimum) + sb->pageStep;
+        thumb = std::clamp(int(track * sb->pageStep / total), std::min(track, thickness), track);
+    }
+    const int travel = track - thumb;
+    const int at = button + (sb->maximum > sb->minimum
+                                 ? int(std::lround(double(travel) * (sb->sliderPosition - sb->minimum)
+                                                   / (sb->maximum - sb->minimum)))
+                                 : 0);
+    auto along = [&](int start, int len) {
+        return vertical ? QRect(r.x(), r.y() + start, r.width(), len)
+                        : QRect(r.x() + start, r.y(), len, r.height());
+    };
+    switch (sc) {
+    case SC_ScrollBarSubLine: return along(0, button);
+    case SC_ScrollBarAddLine: return along(length - button, button);
+    case SC_ScrollBarGroove:  return along(button, track);
+    case SC_ScrollBarSlider:  return along(at, thumb);
+    case SC_ScrollBarSubPage: return along(button, at - button);
+    case SC_ScrollBarAddPage: return along(at + thumb, length - button - (at + thumb));
+    default:                  return QProxyStyle::subControlRect(cc, opt, sc, w);
+    }
+}
+
+void ClayStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex *opt, QPainter *p,
+                                   const QWidget *w) const
+{
+    const auto *sb = qstyleoption_cast<const QStyleOptionSlider *>(opt);
+    if (cc != CC_ScrollBar || !sb || !ThemeManager::instance()) {
+        QProxyStyle::drawComplexControl(cc, opt, p, w);
+        return;
+    }
+    const auto c = colors();
+    const bool contrast = ClayPaint::contrastLook();
+    const bool enabled = sb->state & State_Enabled;
+    const bool vertical = sb->orientation == Qt::Vertical;
+    constexpr double kInset = 2;                                   // from every side of its part
+    p->save();
+    p->fillRect(sb->rect, c.surface);                              // the track
+    p->setRenderHint(QPainter::Antialiasing, true);
+    p->setPen(Qt::NoPen);
+
+    // High contrast: the thumb is in the text colour, so hover and dragging use the accent.
+    const QColor thumbRest = contrast ? c.text : c.inputBorder;
+    const QColor thumbHover = contrast ? c.accent : Theme::mix(c.inputBorder, c.text, 0.35);
+    const QColor thumbDown = contrast ? c.accent : c.text;
+    auto stateOf = [&](SubControl part) {
+        const bool over = (sb->activeSubControls & part) && (sb->state & State_MouseOver);
+        const bool down = (sb->activeSubControls & part) && (sb->state & State_Sunken);
+        return std::pair<bool, bool>{over, down};
+    };
+
+    // The thumb: a pill, half its width round (4 px corners in high contrast, R2).
+    const QRect thumb = subControlRect(cc, sb, SC_ScrollBarSlider, w);
+    if (enabled && sb->maximum > sb->minimum && !thumb.isEmpty()) {
+        const auto [over, down] = stateOf(SC_ScrollBarSlider);
+        const QRectF pill = QRectF(thumb).adjusted(kInset, kInset, -kInset, -kInset);
+        const double radius = contrast ? double(Design::kRadiusContrast)
+                                       : std::min(pill.width(), pill.height()) / 2.0;
+        p->setBrush(down ? thumbDown : over ? thumbHover : thumbRest);
+        p->drawPath(ClayPaint::shape(pill, radius));
+    }
+
+    // The arrow buttons: a small rounded triangle, on a rounded square while hovered or pressed.
+    for (SubControl part : {SC_ScrollBarSubLine, SC_ScrollBarAddLine}) {
+        const QRect r = subControlRect(cc, sb, part, w);
+        const auto [over, down] = stateOf(part);
+        if (enabled && (over || down)) {
+            p->setPen(Qt::NoPen);
+            p->setBrush(down ? c.mutedText : Theme::mix(c.surface, c.text, 0.12));
+            p->drawPath(ClayPaint::shape(QRectF(r).adjusted(kInset, kInset, -kInset, -kInset),
+                                         ClayPaint::controlRadius()));
+        }
+        const QColor glyph = !enabled ? c.disabledText : down ? c.surface : c.mutedText;
+        const QPointF m = QRectF(r).center();
+        const double s = 3.5;                                      // half the triangle's width
+        QPolygonF tri;
+        const bool towardStart = part == SC_ScrollBarSubLine;
+        if (vertical)
+            tri = towardStart ? QPolygonF{{m.x() - s, m.y() + s / 2}, {m.x() + s, m.y() + s / 2}, {m.x(), m.y() - s / 2}}
+                              : QPolygonF{{m.x() - s, m.y() - s / 2}, {m.x() + s, m.y() - s / 2}, {m.x(), m.y() + s / 2}};
+        else
+            tri = towardStart ? QPolygonF{{m.x() + s / 2, m.y() - s}, {m.x() + s / 2, m.y() + s}, {m.x() - s / 2, m.y()}}
+                              : QPolygonF{{m.x() - s / 2, m.y() - s}, {m.x() - s / 2, m.y() + s}, {m.x() + s / 2, m.y()}};
+        // A same-coloured outline with round joins rounds the triangle's corners.
+        p->setPen(QPen(glyph, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p->setBrush(glyph);
+        p->drawPolygon(tri);
+    }
+    p->restore();
 }

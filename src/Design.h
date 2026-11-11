@@ -44,7 +44,9 @@ inline constexpr int kIconTwoLine = 32;         // Z3: beside two-line list item
 inline constexpr int kCheckBox = 20;            // the box of a check box (a multiple of 4, Z5)
 
 // Z5: the window can shrink to this (layout px) and everything still works by reflowing.
-inline constexpr int kMinWindowWidth = 512;
+// 636 is the widest that still fits every Snap half and quarter at Normal text (the
+// narrowest is a half of 1920 x 1080 at 150%: 638 inside).
+inline constexpr int kMinWindowWidth = 636;
 inline constexpr int kMinWindowHeight = 320;
 // SC3: from this size up, the important parts fit without scrolling at Normal text.
 inline constexpr int kCheckedWindowWidth = 1024;
@@ -132,7 +134,8 @@ constexpr int barHeight(int tallestControl = kTarget) { return tallestControl + 
 // L9: the space the two bars take from the top of the window at Normal text (164).
 constexpr int barsTotal() { return kWindowMargin + barHeight() + kBarRowGap + barHeight() + kBarToPage; }
 
-// K1: the page ends this far above the window's bottom, so the undo bar never covers it.
+// K1 (D60): while the undo bar shows, the page ends this far above the window's bottom, so the
+// bar never covers it (one line: 76).
 constexpr int undoReserve(int undoBarHeight = barHeight()) { return undoBarHeight + kWindowMargin; }
 
 // --- RZ: resizing ------------------------------------------------------------------------

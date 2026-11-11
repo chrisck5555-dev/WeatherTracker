@@ -48,6 +48,10 @@ add_library(WeatherCore STATIC
     src/Design.h
     src/Responsive.cpp
     src/Responsive.h
+    src/BannerPlan.cpp
+    src/BannerPlan.h
+    src/BoxBlur.cpp
+    src/BoxBlur.h
 )
 target_include_directories(WeatherCore PUBLIC src)
 target_link_libraries(WeatherCore PUBLIC Qt6::Core Qt6::Gui Qt6::Sql)
@@ -127,8 +131,20 @@ add_executable(WeatherTracker WIN32
     src/HoverFade.cpp
     src/HoverFade.h
     src/KeyboardNav.h
-    src/Toast.cpp
-    src/Toast.h
+    src/UndoBar.cpp
+    src/UndoBar.h
+    src/ChoiceButtons.cpp
+    src/ChoiceButtons.h
+    src/FlowLayout.cpp
+    src/FlowLayout.h
+    src/Glass.cpp
+    src/Glass.h
+    src/FloatingBars.cpp
+    src/FloatingBars.h
+    src/PageArea.cpp
+    src/PageArea.h
+    src/PageHeader.cpp
+    src/PageHeader.h
     src/CommandPanel.cpp
     src/CommandPanel.h
     src/ViewTransition.cpp
@@ -140,7 +156,7 @@ add_executable(WeatherTracker WIN32
 
 target_link_libraries(WeatherTracker PRIVATE Qt6::Widgets Qt6::Network Qt6::Svg WeatherCore)
 if(WIN32)
-    target_link_libraries(WeatherTracker PRIVATE user32)   # Windows' "Animation effects" setting
+    target_link_libraries(WeatherTracker PRIVATE user32 gdi32)   # Windows' settings: animation effects, scroll bar width
 endif()
 
 # Tests
@@ -213,6 +229,19 @@ add_executable(tst_design tests/tst_design.cpp)
 target_link_libraries(tst_design PRIVATE WeatherCore Qt6::Test)
 add_test(NAME design COMMAND tst_design)
 
+add_executable(tst_bannerplan tests/tst_bannerplan.cpp)
+target_link_libraries(tst_bannerplan PRIVATE WeatherCore Qt6::Test)
+add_test(NAME bannerplan COMMAND tst_bannerplan)
+
+add_executable(tst_boxblur tests/tst_boxblur.cpp)
+target_link_libraries(tst_boxblur PRIVATE WeatherCore Qt6::Test)
+add_test(NAME boxblur COMMAND tst_boxblur)
+
+add_executable(tst_flowlayout tests/tst_flowlayout.cpp src/FlowLayout.cpp src/FlowLayout.h)
+target_link_libraries(tst_flowlayout PRIVATE WeatherCore Qt6::Widgets Qt6::Test)
+add_test(NAME flowlayout COMMAND tst_flowlayout)
+set_tests_properties(flowlayout PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 
 # Tools
 add_executable(bench_cells tools/bench_cells.cpp)
@@ -232,5 +261,5 @@ list(REMOVE_ITEM WT_APP_SOURCES src/main.cpp resources/app-icon/app.rc)
 add_executable(wt_measure EXCLUDE_FROM_ALL tools/wt_measure.cpp tools/layout_check.cpp ${WT_APP_SOURCES})
 target_link_libraries(wt_measure PRIVATE Qt6::Widgets Qt6::Network Qt6::Test Qt6::Svg WeatherCore)
 if(WIN32)
-    target_link_libraries(wt_measure PRIVATE user32 dwmapi dxgi)   # screen-refresh tests
+    target_link_libraries(wt_measure PRIVATE user32 gdi32 dwmapi dxgi)   # screen-refresh tests
 endif()

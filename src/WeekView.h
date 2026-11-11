@@ -32,7 +32,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;      // Up/Down move a day, Enter opens it
     void focusInEvent(QFocusEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
-    QSize minimumSizeHint() const override { return QSize(620, 420); }
+    QSize minimumSizeHint() const override { return QSize(620, 380); }
 
 private:
     void reload();

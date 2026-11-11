@@ -4,6 +4,8 @@
 #include <QSize>
 #include <QString>
 
+#include "BannerPlan.h"
+
 class QColor;
 class QPainter;
 class QRectF;
@@ -19,10 +21,12 @@ QPixmap marker(const QString &name, int size, qreal dpr);
 
 QPixmap emptyDay(int size, qreal dpr);
 
-bool bannerAvailable(const QString &name);              // clay look and the file is packed in
-
-// Wide strip for the Day screen: banner-sunny/cloudy/rain/snow/plain. Fills `size` exactly.
-QPixmap banner(const QString &name, const QSize &size, qreal dpr);
+// IL1: the Day view's banner, in the soft looks only (light: day; dark: night), built from
+// the squares in resources/banner-squares (BannerPlan picks them from the date). Scaled to
+// `size`'s height, never stretched, and cut off where the strip ends.
+bool bannerAvailable();
+QPixmap banner(const QDate &date, BannerPlan::Sky sky, bool snowGround, const QSize &size,
+               qreal dpr);
 
 // Season picture for a month tile (month 1-12). Fills `size` exactly.
 QPixmap seasonTile(int month, const QSize &size, qreal dpr);

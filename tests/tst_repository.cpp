@@ -83,6 +83,25 @@ private slots:
         QCOMPARE(repo->note(d), nasty);
     }
 
+    // The Day banner's snowy ground (IL1): from "Snow cover starts" until "All melted".
+    void snowCover()
+    {
+        const QDate start(2026, 11, 20), melted(2027, 3, 15);
+        QVERIFY(!repo->snowCoverOn(start.addDays(-1)));
+        QVERIFY(repo->saveEvents(start, QSet<QString>{"snow_cover_starts"}));
+        QVERIFY(repo->snowCoverOn(start));
+        QVERIFY(repo->snowCoverOn(QDate(2027, 1, 1)));
+        QVERIFY(repo->saveEvents(melted, QSet<QString>{"all_melted"}));
+        QVERIFY(repo->snowCoverOn(melted.addDays(-1)));
+        QVERIFY(!repo->snowCoverOn(melted));                  // melted that day
+        QVERIFY(!repo->snowCoverOn(QDate(2027, 7, 1)));
+        // A start with no "All melted" stops counting after kSnowCoverDays.
+        const QDate again(2027, 11, 1);
+        QVERIFY(repo->saveEvents(again, QSet<QString>{"snow_cover_starts"}));
+        QVERIFY(repo->snowCoverOn(again.addDays(Repository::kSnowCoverDays - 1)));
+        QVERIFY(!repo->snowCoverOn(again.addDays(Repository::kSnowCoverDays)));
+    }
+
     void events()
     {
         QVERIFY(repo->saveEvents(d, QSet<QString>{"first_snow", "first_frost"}));

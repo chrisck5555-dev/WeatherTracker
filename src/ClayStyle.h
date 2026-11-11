@@ -12,6 +12,8 @@
 //   - keyboard focus is a tint of the accent over the whole control
 //   - disabled is muted colours, no hover and no raised edge (never see-through)
 //   - Fluent icons (Icons.h) are drawn in the label's colour, Filled when selected
+//   - scroll bars are Windows 10's (SC2): 17 px, an arrow button at each end and a plain
+//     thumb, in the look's colours
 class ClayStyle : public QProxyStyle
 {
 public:
@@ -31,6 +33,10 @@ public:
                            const QWidget *widget) const override;
     int pixelMetric(PixelMetric metric, const QStyleOption *option,
                     const QWidget *widget) const override;
+    void drawComplexControl(ComplexControl control, const QStyleOptionComplex *option,
+                            QPainter *painter, const QWidget *widget) const override;
+    QRect subControlRect(ComplexControl control, const QStyleOptionComplex *option,
+                         SubControl sub, const QWidget *widget) const override;
 
 private:
     QObject *m_motion;                          // eases hover and press (ButtonMotion)

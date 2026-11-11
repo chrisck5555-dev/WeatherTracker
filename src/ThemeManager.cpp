@@ -95,6 +95,7 @@ void ThemeManager::apply()
         "QLineEdit, QPlainTextEdit, QComboBox { border-color: %9; }"   // boxes she types in: easy to see
         "QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus { background: %10; }"
         "QLineEdit:disabled { color: %11; }"
+        "QComboBox::drop-down { subcontrol-origin: content; subcontrol-position: center right; border: none; width: 24px; }"   // EditorView draws the chevron
         "QToolTip { background: %1; color: %2; border: %3px solid %4; padding: %6px %7px; }"
         "QMessageBox { background: %12; }")
         .arg(c.surface.name(), c.text.name())                  // 1, 2
@@ -119,4 +120,4 @@ void ThemeManager::apply()
     emit themeChanged();
     for (QWidget *w : QApplication::allWidgets())
         w->update();
-}
+}

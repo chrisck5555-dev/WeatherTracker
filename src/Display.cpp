@@ -1,8 +1,12 @@
 #include "Display.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QProcess>
+#include <QSettings>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX                                // MinGW often defines it already
@@ -33,6 +37,51 @@ bool animationsAllowed()
         return on != FALSE;
 #endif
     return true;
+}
+
+bool transparencyOff()
+{
+#ifdef Q_OS_WIN
+    const QSettings personalize(
+        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        QSettings::NativeFormat);
+    return personalize.value("EnableTransparency", 1).toInt() == 0;
+#else
+    return false;
+#endif
+}
+
+bool batterySaverOn()
+{
+#ifdef Q_OS_WIN
+    SYSTEM_POWER_STATUS status;
+    if (!GetSystemPowerStatus(&status))
+        return false;
+    // The fourth byte is SystemStatusFlag (1 = battery saver on, Windows 10 and newer).
+    // Older MinGW headers call it Reserved1, so it is read by its place.
+    return reinterpret_cast<const BYTE *>(&status)[3] == 1;
+#else
+    return false;
+#endif
+}
+
+int scrollBarWidth()
+{
+    static const int width = [] {
+#ifdef Q_OS_WIN
+        // GetSystemMetrics answers at the system's DPI, so it is turned back into 100% px.
+        const int px = GetSystemMetrics(SM_CXVSCROLL);
+        int dpi = 96;
+        if (HDC screen = GetDC(nullptr)) {
+            dpi = GetDeviceCaps(screen, LOGPIXELSX);
+            ReleaseDC(nullptr, screen);
+        }
+        if (px > 0 && dpi > 0)
+            return std::clamp(int(std::lround(px * 96.0 / dpi)), 12, 64);
+#endif
+        return 17;
+    }();
+    return width;
 }
 
 bool relaunchWithScale(double factor)

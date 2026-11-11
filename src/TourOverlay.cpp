@@ -88,7 +88,7 @@ TourOverlay::TourOverlay(QWidget *root, PanelHost *host, Hooks hooks)
          {}},
         {"Writing down the weather",
          "Fill in what you know and leave the rest empty. Nothing is saved during the tour.",
-         {{"Press the blue button next to the tabs (“Add today's weather”)", "editorOpened"},
+         {{"Press “Add today's weather” at the top left", "editorOpened"},
           {"Type in any box", "editorEdited"},
           {"Press “Cancel”", "editorCancelled"}}},
         {"Looking at your days",

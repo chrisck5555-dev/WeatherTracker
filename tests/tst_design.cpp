@@ -103,7 +103,9 @@ private slots:
         QCOMPARE(Responsive::band(640), Band::Medium);
         QCOMPARE(Responsive::band(1007), Band::Medium);
         QCOMPARE(Responsive::band(1008), Band::Wide);
-        QCOMPARE(Responsive::band(683), Band::Medium);    // Largest text at 1366 x 768
+        QCOMPARE(Responsive::band(683), Band::Medium);    // Snap half of 1366 x 768
+        QCOMPARE(Responsive::band(911), Band::Medium);    // Extra large text at 1366 x 768
+        QVERIFY(Responsive::band(kMinWindowWidth) == Band::Narrow);   // only 636-639 now
         QCOMPARE(Responsive::band(1366), Band::Wide);
         QVERIFY(!Responsive::twoColumns(Band::Medium));
         QVERIFY(Responsive::twoColumns(Band::Wide));

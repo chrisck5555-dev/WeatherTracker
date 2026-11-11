@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 54 162" width="54" height="162">
+<defs>
+<linearGradient id="gr" gradientUnits="userSpaceOnUse" x1="0" y1="100" x2="0" y2="162"><stop offset="0.00" stop-color="#56617F"/><stop offset="1.00" stop-color="#3E4764"/></linearGradient>
+<filter id="fG" filterUnits="userSpaceOnUse" x="-60" y="-20" width="174" height="302" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="0.001 5" result="blur"/>
+<feOffset in="blur" dy="7" result="lOff"/><feComposite in="SourceAlpha" in2="lOff" operator="arithmetic" k2="1" k3="-1" result="lMask"/>
+<feFlood flood-color="#8D99BD" flood-opacity="0.4"/><feComposite in2="lMask" operator="in" result="light"/>
+<feGaussianBlur in="SourceAlpha" stdDeviation="0.001 9" result="blur2"/>
+<feOffset in="blur2" dy="20" result="dOff"/><feComposite in="SourceAlpha" in2="dOff" operator="arithmetic" k2="1" k3="-1" result="dBand"/>
+<feComposite in="dBand" in2="lMask" operator="arithmetic" k2="1" k3="-1" result="dMask"/>
+<feFlood flood-color="#232A40" flood-opacity="0.35"/><feComposite in2="dMask" operator="in" result="dark"/>
+<feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+</filter>
+</defs>
+<g filter="url(#fG)"><path d="M-40,242 L-40,87.52 L-39,87.97 L-38,88.41 L-37,88.86 L-36,89.30 L-35,89.75 L-34,90.19 L-33,90.63 L-32,91.08 L-31,91.52 L-30,91.97 L-29,92.41 L-28,92.86 L-27,93.30 L-26,93.75 L-25,94.19 L-24,94.63 L-23,95.08 L-22,95.52 L-21,95.97 L-20,96.41 L-19,96.86 L-18,97.30 L-17,97.75 L-16,98.19 L-15,98.63 L-14,99.08 L-13,99.52 L-12,99.97 L-11,100.41 L-10,100.86 L-9,101.30 L-8,101.74 L-7,102.19 L-6,102.63 L-5,103.08 L-4,103.52 L-3,103.97 L-2,104.41 L-1,104.86 L0,105.30 L1,105.74 L2,106.16 L3,106.56 L4,106.95 L5,107.32 L6,107.67 L7,108.01 L8,108.33 L9,108.63 L10,108.92 L11,109.19 L12,109.45 L13,109.69 L14,109.91 L15,110.11 L16,110.30 L17,110.48 L18,110.63 L19,110.77 L20,110.90 L21,111.00 L22,111.09 L23,111.17 L24,111.23 L25,111.27 L26,111.29 L27,111.30 L28,111.29 L29,111.27 L30,111.23 L31,111.17 L32,111.09 L33,111.00 L34,110.90 L35,110.77 L36,110.63 L37,110.48 L38,110.30 L39,110.11 L40,109.91 L41,109.69 L42,109.45 L43,109.19 L44,108.92 L45,108.63 L46,108.33 L47,108.01 L48,107.67 L49,107.32 L50,106.95 L51,106.56 L52,106.16 L53,105.74 L54,105.30 L55,104.86 L56,104.41 L57,103.97 L58,103.52 L59,103.08 L60,102.63 L61,102.19 L62,101.74 L63,101.30 L64,100.86 L65,100.41 L66,99.97 L67,99.52 L68,99.08 L69,98.63 L70,98.19 L71,97.75 L72,97.30 L73,96.86 L74,96.41 L75,95.97 L76,95.52 L77,95.08 L78,94.63 L79,94.19 L80,93.75 L81,93.30 L82,92.86 L83,92.41 L84,91.97 L85,91.52 L86,91.08 L87,90.63 L88,90.19 L89,89.75 L90,89.30 L91,88.86 L92,88.41 L93,87.97 L94,87.52 L94,242 Z" fill="url(#gr)"/></g>
+</svg>
