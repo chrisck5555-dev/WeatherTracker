@@ -33,6 +33,12 @@ int outlineWidth();                 // E2: 1 px, or 3 px in high contrast
 // Fills `r`'s shape with a translucent overlay (hover, pressed, focus: ST2, ST3, F1).
 void drawOverlay(QPainter &p, const QRectF &r, double radius, const QColor &overlay);
 
+// E1, elevation 2: the raised edge Windows' own buttons have. In light looks the outline is a
+// little darker along the bottom; in dark looks a little lighter along the top. `lift` fades
+// it out as the control sinks (elevation 1). Not used in high contrast.
+void drawRaisedEdge(QPainter &p, const QRectF &shapeRect, double radius, const QColor &edge,
+                    double lift = 1.0);
+
 // ST2's hover tint, scaled by `amount` (0 = none, 1 = full) as it eases in and out.
 void drawHover(QPainter &p, const QRectF &r, double radius, double amount);
 

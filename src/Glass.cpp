@@ -48,14 +48,17 @@ bool darkLook(const Theme::Colors &c) { return c.text.lightnessF() > c.window.li
 struct ShadowLayer { double dy, blur, alpha; };
 
 // E1: the higher it floats, the larger and softer its shadow. Values follow the mock-ups
-// for the bars (16); the panel and dialog values grow from them.
+// for the bars (16); the panel and dialog values grow from them, and cards' (8) are short
+// and subtle.
 QList<ShadowLayer> layersFor(int elevation)
 {
     if (elevation >= Design::kElevationDialog)
         return {{24, 48, 0.22}, {2, 8, 0.10}};
     if (elevation >= Design::kElevationPanel)
         return {{12, 28, 0.18}, {2, 6, 0.10}};
-    return {{6, 18, 0.16}, {1, 3, 0.10}};
+    if (elevation >= Design::kElevationBar)
+        return {{6, 18, 0.16}, {1, 3, 0.10}};
+    return {{2, 6, 0.10}, {1, 2, 0.08}};
 }
 
 } // namespace
@@ -98,6 +101,14 @@ void reportFrameCost(double ms)
         if (st.slowFrames >= 3)
             st.slow = true;
     });
+}
+
+int shadowReach(int elevation)
+{
+    double margin = 0;
+    for (const ShadowLayer &l : layersFor(elevation))
+        margin = std::max(margin, l.blur + l.dy);
+    return int(std::ceil(margin));
 }
 
 void drawShadow(QPainter &p, const QRectF &shape, double radius, int elevation)

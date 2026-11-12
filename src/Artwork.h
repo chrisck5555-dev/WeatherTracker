@@ -28,7 +28,8 @@ bool bannerAvailable();
 QPixmap banner(const QDate &date, BannerPlan::Sky sky, bool snowGround, const QSize &size,
                qreal dpr);
 
-// Season picture for a month tile (month 1-12). Fills `size` exactly.
+// Season picture for a Year tile's strip (month 1-12). Fills `size` exactly, cut from the
+// picture's bottom edge.
 QPixmap seasonTile(int month, const QSize &size, qreal dpr);
 
 // Repeating page background in clay looks; a plain fill in the others.

@@ -25,7 +25,7 @@ QHash<QString, QPixmap> &cache()
     return pixmaps;
 }
 
-enum class Fit { Keep, Cover };   // keep its shape / fill and crop
+enum class Fit { Keep, Cover, CoverBottom };   // keep its shape / fill and crop (from the bottom)
 
 // Loads `path` and scales it to `logical` size (times dpr).
 QPixmap scaled(const QString &path, const QSize &logical, qreal dpr, Fit fit)
@@ -43,10 +43,10 @@ QPixmap scaled(const QString &path, const QSize &logical, qreal dpr, Fit fit)
     if (base.isNull())
         return QPixmap();
     QPixmap result;
-    if (fit == Fit::Cover) {
+    if (fit == Fit::Cover || fit == Fit::CoverBottom) {
         const QPixmap big = base.scaled(px, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-        result = big.copy((big.width() - px.width()) / 2, (big.height() - px.height()) / 2,
-                          px.width(), px.height());
+        const int top = fit == Fit::Cover ? (big.height() - px.height()) / 2 : big.height() - px.height();
+        result = big.copy((big.width() - px.width()) / 2, top, px.width(), px.height());
     } else if (base.size() == px) {
         result = base;
     } else {
@@ -161,7 +161,10 @@ QPixmap seasonTile(int month, const QSize &size, qreal dpr)
     if (month >= 3 && month <= 5)       season = "spring";
     else if (month >= 6 && month <= 8)  season = "summer";
     else if (month >= 9 && month <= 11) season = "autumn";
-    return scaled(QString(":/backgrounds/%1/tile-%2.png").arg(look(), season), size, dpr, Fit::Cover);
+    // The pictures' seasons are along their edges, so a strip shows the bottom edge, where
+    // the snow, flowers, sunflowers and leaves are.
+    return scaled(QString(":/backgrounds/%1/tile-%2.png").arg(look(), season), size, dpr,
+                  Fit::CoverBottom);
 }
 
 void paintPage(QPainter &p, const QRectF &area, const QColor &fallback)

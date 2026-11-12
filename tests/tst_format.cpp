@@ -43,6 +43,19 @@ private slots:
         QCOMPARE(Format::precipitation("Rain", std::nullopt), QString("Rain"));
         QCOMPARE(Format::precipitation("", 2.0), QString("2 mm"));
     }
+    // CF4: the saved side the wind comes from becomes the side it goes to.
+    void windGoingTo()
+    {
+        QCOMPARE(Format::windGoingTo("N"), QString("S"));
+        QCOMPARE(Format::windGoingTo("NW"), QString("SE"));
+        QCOMPARE(Format::windGoingTo("E"), QString("W"));
+        QCOMPARE(Format::windGoingTo(""), QString());
+        QCOMPARE(Format::wind(12.0, "NW"), QString("12 km/h going to the SE"));
+        QCOMPARE(Format::wind(std::nullopt, "S"), QString("Going to the N"));
+        QCOMPARE(Format::wind(5.5, ""), QString("5.5 km/h"));
+        QCOMPARE(Format::wind(std::nullopt, ""), QString("Not recorded"));
+    }
+
     void describesADayForScreenReaders()
     {
         WeatherDay w;

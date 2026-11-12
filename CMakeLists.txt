@@ -67,12 +67,18 @@ add_executable(WeatherTracker WIN32
     src/PeriodSelector.h
     src/MonthGridWidget.cpp
     src/MonthGridWidget.h
+    src/CalendarTile.cpp
+    src/CalendarTile.h
+    src/Card.cpp
+    src/Card.h
     src/Markers.cpp
     src/Markers.h
     src/DayView.cpp
     src/DayView.h
     src/WeekView.cpp
     src/WeekView.h
+    src/WeekStrip.cpp
+    src/WeekStrip.h
     src/YearView.cpp
     src/YearView.h
     src/NumberField.cpp

@@ -26,8 +26,10 @@ double frost();                       // G3: 85% in soft light, 90% in soft dark
 void reportFrameCost(double ms);
 
 // E1: the soft shadow under a floating shape (none in high contrast). `elevation` is
-// Design::kElevationBar (16), kElevationPanel (32) or kElevationDialog (128).
+// Design::kElevationCard (8), kElevationBar (16), kElevationPanel (32) or
+// kElevationDialog (128). It reaches `shadowReach(elevation)` px past the shape.
 void drawShadow(QPainter &p, const QRectF &shape, double radius, int elevation);
+int shadowReach(int elevation);
 
 } // namespace Glass
 

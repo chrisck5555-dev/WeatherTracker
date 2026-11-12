@@ -52,9 +52,8 @@ struct Square {
     std::array<Piece, 3> ground;           // left, middle, right
 };
 
-// The sun (or moon) is always in the third, fourth or fifth square: clear of the "Add / edit
-// this day" button at the left, in view in the smallest window, and in the same place at
-// every window size.
+// The sun (or moon) is always in the third, fourth or fifth square: in view in the smallest
+// window, and in the same place at every window size.
 inline constexpr int kBodyFirst = 2;
 inline constexpr int kBodySpan = 3;
 

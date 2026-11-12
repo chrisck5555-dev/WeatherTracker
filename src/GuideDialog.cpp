@@ -23,10 +23,11 @@ GuideDialog::GuideDialog(QWidget *parent)
         "<p>Press <b>Add today's weather</b> (next to the tabs). Fill in what you know and "
         "leave the rest. Empty fields show as “Not recorded”. Press <b>Save</b> when "
         "you are done, or <b>Cancel</b> to leave without saving.</p>"
-        "<p>For another day, open it on the Calendar tab and press <b>Add / edit this day</b>. "
+        "<p>For another day, open it on the Calendar tab and press <b>Edit this day</b> (or "
+        "<b>Add this day's weather</b> if it has nothing yet). "
         "Besides the weather, each day has a <b>note</b> for anything you want to remember and "
         "a list of <b>events</b>, such as the first snow.</p>"
-        "<p>To remove everything recorded for a day, open it and press <b>Delete this day</b>. "
+        "<p>To remove everything recorded for a day, open it and press <b>Delete day</b>. "
         "A message at the bottom of the window lets you <b>Undo</b> it for a few seconds "
         "(or press <b>Ctrl+Z</b>).</p>"
 

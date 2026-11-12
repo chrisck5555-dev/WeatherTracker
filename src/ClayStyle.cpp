@@ -137,32 +137,6 @@ Kind kindOf(const QWidget *w)
     return Kind::Secondary;
 }
 
-// The raised edge (E1, elevation 2), as Windows' own buttons draw it: in light looks the
-// outline is a little darker along the bottom; in dark looks a little lighter along the top,
-// like an edge catching the light. `lift` fades it out as the button sinks (elevation 1).
-void drawRaisedEdge(QPainter &p, const QRectF &shapeRect, double radius, const QColor &edge,
-                    double lift)
-{
-    if (lift <= 0.01)
-        return;
-    const auto c = colors();
-    const bool dark = c.text.lightnessF() > c.window.lightnessF();
-    // Toward the text colour: darker in light looks, lighter in dark ones.
-    const QColor shade = Theme::mix(edge, c.text, 0.28 * lift);
-    p.save();
-    p.setRenderHint(QPainter::Antialiasing);
-    if (dark)
-        p.setClipRect(QRectF(shapeRect.left() - 1, shapeRect.top() - 1,
-                             shapeRect.width() + 2, radius + 1));
-    else
-        p.setClipRect(QRectF(shapeRect.left() - 1, shapeRect.bottom() - radius,
-                             shapeRect.width() + 2, radius + 2));
-    p.setPen(QPen(shade, 1));
-    p.setBrush(Qt::NoBrush);
-    p.drawPath(ClayPaint::shape(shapeRect.adjusted(0.5, 0.5, -0.5, -0.5), radius - 0.5));
-    p.restore();
-}
-
 // Fill, overlays and outline of one control shape.
 void drawControlShape(QPainter &p, const QRectF &r, double radius, const QColor &fill,
                       const QColor &edge, bool raised, double hover, double lift, bool pressed,
@@ -192,7 +166,7 @@ void drawControlShape(QPainter &p, const QRectF &r, double radius, const QColor 
         p.setBrush(Qt::NoBrush);
         p.drawPath(ClayPaint::shape(r.adjusted(half, half, -half, -half), std::max(0.0, radius - half)));
         if (raised && !ClayPaint::contrastLook())
-            drawRaisedEdge(p, r, radius, edge, lift);
+            ClayPaint::drawRaisedEdge(p, r, radius, edge, lift);
     }
     p.restore();
 }

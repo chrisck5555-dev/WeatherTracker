@@ -233,7 +233,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     auto *weekView = new WeekView(*m_state, m_repo);
     auto *monthGrid = new MonthGridWidget(*m_state, m_repo);
     m_monthGrid = monthGrid;
-    auto *yearView = new YearView(*m_state);
+    auto *yearView = new YearView(*m_state, m_repo);
     m_editor = new EditorView(m_repo);
     m_calendarStack = new PageStack;
     m_calendarStack->addWidget(dayView);      // 0
@@ -375,8 +375,6 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
         openOnCalendar(Period::Day, d);
         tourReport("dayOpened");
     });
-    connect(monthGrid, &MonthGridWidget::weekActivated, this,
-            [openOnCalendar](const QDate &d) { openOnCalendar(Period::Week, d); });
     connect(weekView, &WeekView::dayActivated, this, [openOnCalendar, this](const QDate &d) {
         openOnCalendar(Period::Day, d);
         tourReport("dayOpened");

@@ -1,30 +1,76 @@
 #include "MonthGridWidget.h"
 
+#include <QHelpEvent>
 #include <QKeyEvent>
 #include <QLocale>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QToolTip>
 #include <algorithm>
+#include <cmath>
 
 #include "AppState.h"
 #include "Artwork.h"
-#include "ClayPaint.h"
+#include "CalendarTile.h"
+#include "Design.h"
 #include "Format.h"
 #include "HoverFade.h"
 #include "KeyboardNav.h"
-#include "Markers.h"
 #include "PeriodMath.h"
 #include "Repository.h"
-#include "Theme.h"
 #include "ThemeManager.h"
-#include "WeatherIcons.h"
 #include "Typography.h"
+#include "WeatherIcons.h"
 
 namespace {
-constexpr int kHeaderHeight = 40;    // weekday names
-constexpr int kLegendHeight = 44;    // marker explanations
-constexpr int kWeekColWidth = 96;    // the "Open week" button column
+// Down the widget: the weekday names, the tiles, the key.
+constexpr int kNamesHeight = 20;                    // Caption's line
+constexpr int kNamesGap = Design::kGapHeader;       // 8: names to tiles
+constexpr int kKeyGap = Design::kGapAreas;          // 12: tiles to key
+// Today's outline is 2 px wide, 2 px outside its tile (C5), so the tiles keep 4 px clear of
+// the widget's left and right edges, where it would be cut off. Above and below, the gaps
+// to the names and the key leave it room.
+constexpr int kRingRoom = 4;
+constexpr int kTileGap = Design::kGapButtons;       // 8 between tiles
+
+// Inside a tile (CAL4; sizes include S1's 8 px padding).
+constexpr int kPad = 8;
+constexpr int kRowHeight = 28;                      // Body's line: the number and the picture
+constexpr int kCaptionLine = 20;                    // Caption's line: high/low
+constexpr int kPicture = 24;
+constexpr int kPairGap = 4;                         // number to its picture
+constexpr int kItemGap = Design::kGapButtons;       // 8: between the other items in a row
+constexpr int kRowGap = 4;                          // between stacked rows
+constexpr int kTwoRowsMinW = 158, kTwoRowsMinH = 64;
+constexpr int kOneRowMinW = 132, kOneRowMinH = 44;
+
+QFont numberFont(const QFont &base) { return tabularDigits(textFont(Design::TextStyle::Body, base)); }
+QFont captionFont(const QFont &base) { return tabularDigits(textFont(Design::TextStyle::Caption, base)); }
+
+// The widest the day number and high/low can be, so every month gets the same arrangement.
+double numberWidth(const QFont &base) { return QFontMetricsF(numberFont(base)).horizontalAdvance("00"); }
+double highLowWidth(const QFont &base)
+{
+    return QFontMetricsF(captionFont(base)).horizontalAdvance(QString::fromUtf8("-00° / -00°"));
 }
+
+// "8° / 1°"; one of them alone is named.
+QString highLow(const WeatherDay &w, Units::System units)
+{
+    auto deg = [units](double c) {
+        return Format::number(Units::cToDisplay(c, units), 0) + QString::fromUtf8("°");
+    };
+    if (w.highC && w.lowC)
+        return deg(*w.highC) + " / " + deg(*w.lowC);
+    if (w.highC)
+        return "High " + deg(*w.highC);
+    if (w.lowC)
+        return "Low " + deg(*w.lowC);
+    return QString();
+}
+
+int markerCount(bool weather, bool note, bool event) { return int(weather) + int(note) + int(event); }
+} // namespace
 
 MonthGridWidget::MonthGridWidget(AppState &state, Repository &repo, QWidget *parent)
     : QWidget(parent)
@@ -38,15 +84,15 @@ MonthGridWidget::MonthGridWidget(AppState &state, Repository &repo, QWidget *par
     setFocusPolicy(Qt::TabFocus);
     setAccessibleDescription("Month calendar. The arrow keys move one day, Page Up and "
                              "Page Down move one month, and Enter opens the day.");
+    QSizePolicy policy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    policy.setHeightForWidth(true);
+    setSizePolicy(policy);
     m_hover = new HoverFade(this, [this](const QPointF &pos) { return hoverItemAt(pos); });
     reloadData();
 }
 
 int MonthGridWidget::hoverItemAt(const QPointF &pos) const
 {
-    for (int row = 0; row < 6; ++row)
-        if (weekButtonRect(row).contains(pos))
-            return 100 + row;
     const QDate d = dateAt(pos);
     return d.isValid() ? int(gridStart().daysTo(d)) : -1;
 }
@@ -78,23 +124,37 @@ void MonthGridWidget::onDateChanged()
     update();                                  // the month shown may have changed
 }
 
-void MonthGridWidget::updateAccessibleText()
+QString MonthGridWidget::describe(const QDate &d) const
 {
-    const QDate d = m_state.currentDate();
     const auto it = m_weather.constFind(d);
-    KeyboardNav::announce(this, Format::describeDay(
+    return Format::describeDay(
         d, it == m_weather.constEnd() ? std::nullopt : std::optional<WeatherDay>(*it),
         m_noteDates.contains(d), m_eventDates.contains(d),
-        Units::fromSetting(m_repo.setting("units", "metric"))));
+        Units::fromSetting(m_repo.setting("units", "metric")));
 }
 
-// ---------------- Keyboard ----------------
+void MonthGridWidget::updateAccessibleText()
+{
+    KeyboardNav::announce(this, describe(m_state.currentDate()));
+}
+
+// ---------------- Keyboard and tooltips ----------------
 
 bool MonthGridWidget::event(QEvent *event)
 {
     if (KeyboardNav::claim(event, {Qt::Key_Left, Qt::Key_Right, Qt::Key_Up, Qt::Key_Down,
                                    Qt::Key_PageUp, Qt::Key_PageDown}))
         return true;
+    if (event->type() == QEvent::ToolTip) {
+        // CAL4: whatever a tile has no room for is still in its tooltip.
+        auto *help = static_cast<QHelpEvent *>(event);
+        const QDate d = dateAt(help->pos());
+        if (d.isValid())
+            QToolTip::showText(help->globalPos(), describe(d), this, tileRect(int(gridStart().daysTo(d))).toRect());
+        else
+            QToolTip::hideText();
+        return true;
+    }
     return QWidget::event(event);
 }
 
@@ -120,7 +180,7 @@ void MonthGridWidget::focusInEvent(QFocusEvent *event)
 {
     QWidget::focusInEvent(event);
     updateAccessibleText();
-    update();                                  // show the focus ring
+    update();                                  // the focus tint
 }
 
 void MonthGridWidget::focusOutEvent(QFocusEvent *event)
@@ -129,32 +189,120 @@ void MonthGridWidget::focusOutEvent(QFocusEvent *event)
     update();
 }
 
-// ---------------- Geometry (shared by painting and clicking) ----------------
+void MonthGridWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    m_hover->recheck();                        // the tiles moved under a still mouse
+}
+
+// ---------------- Geometry (shared by sizing, painting and clicking) ----------------
+
+double MonthGridWidget::tileWidth(double width) const
+{
+    return std::max(0.0, (width - 2 * kRingRoom - 6 * kTileGap) / 7.0);
+}
+
+MonthGridWidget::TileLayout MonthGridWidget::tileLayout(double w, double h) const
+{
+    const double number = numberWidth(font());
+    const double markers = CalendarTile::markersWidth(3);
+    const double innerW = w - 2 * kPad;
+    const double innerH = h - 2 * kPad;
+    TileLayout t;
+    // Two rows: the number and picture on top; high/low and the markers below.
+    if (w >= kTwoRowsMinW && h >= kTwoRowsMinH && innerH >= kRowHeight + kCaptionLine
+        && innerW >= number + kPairGap + kPicture
+        && innerW >= highLowWidth(font()) + kItemGap + markers) {
+        t.arrangement = Arrangement::TwoRows;
+        t.highLow = true;
+        return t;
+    }
+    // One row: the number, the picture, the markers.
+    if (w >= kOneRowMinW && h >= kOneRowMinH && innerH >= kRowHeight
+        && innerW >= number + kPairGap + kPicture + kItemGap + markers) {
+        t.arrangement = Arrangement::OneRow;
+        return t;
+    }
+    // Stacked: the number and picture on top, the markers below, wrapping. What still
+    // doesn't fit drops from the end of CAL4's list: the picture, then the markers.
+    t.arrangement = Arrangement::Stacked;
+    t.picture = innerW >= number + kPairGap + kPicture;
+    const int step = CalendarTile::kMarkerSize + CalendarTile::kMarkerGap;
+    t.markersPerRow = std::clamp(int((innerW + CalendarTile::kMarkerGap) / step), 0, 3);
+    return t;
+}
+
+double MonthGridWidget::minTileHeight(double w) const
+{
+    const TileLayout t = tileLayout(w, 1e6);
+    if (t.arrangement != Arrangement::Stacked)
+        return kOneRowMinH;                    // Two rows only when there's room to spare
+    const int rows = t.markersPerRow > 0 ? (3 + t.markersPerRow - 1) / t.markersPerRow : 0;
+    return 2 * kPad + kRowHeight + rows * (kRowGap + CalendarTile::kMarkerSize);
+}
+
+int MonthGridWidget::keyHeight(double width) const
+{
+    return CalendarTile::keyHeight({}, captionFont(font()), width - 2 * kRingRoom);
+}
+
+int MonthGridWidget::heightForWidth(int width) const
+{
+    const double tile = minTileHeight(tileWidth(width));
+    return int(std::ceil(kNamesHeight + kNamesGap + 6 * tile + 5 * kTileGap + kKeyGap
+                         + keyHeight(width)));
+}
+
+QSize MonthGridWidget::sizeHint() const
+{
+    return QSize(7 * 183 + 6 * kTileGap + 2 * kRingRoom, heightForWidth(1336));
+}
+
+QSize MonthGridWidget::minimumSizeHint() const
+{
+    // The narrowest at which every tile still has its number, picture and markers.
+    const int w = 7 * int(std::ceil(numberWidth(font()) + kPairGap + kPicture + 2 * kPad))
+                + 6 * kTileGap + 2 * kRingRoom;
+    // The height follows the width (heightForWidth); this is only the least it can be.
+    return QSize(w, heightForWidth(sizeHint().width()));
+}
+
+MonthGridWidget::Arrangement MonthGridWidget::arrangement() const
+{
+    const QRectF g = gridArea();
+    return tileLayout(tileWidth(width()), (g.height() - 5 * kTileGap) / 6.0).arrangement;
+}
 
 QRectF MonthGridWidget::gridArea() const
 {
-    return QRectF(kWeekColWidth, kHeaderHeight,
-                  width() - kWeekColWidth, height() - kHeaderHeight - kLegendHeight);
+    const double top = kNamesHeight + kNamesGap;
+    const double bottom = height() - keyHeight(width()) - kKeyGap;
+    return QRectF(kRingRoom, top, width() - 2 * kRingRoom, std::max(0.0, bottom - top));
 }
 
-QRectF MonthGridWidget::weekButtonRect(int row) const
+QRectF MonthGridWidget::tileRect(int index) const
 {
     const QRectF g = gridArea();
-    const double ch = g.height() / 6.0;
-    return QRectF(6, g.top() + row * ch + ch / 2 - 22, kWeekColWidth - 12, 44);
+    const double w = tileWidth(width());
+    const double h = std::max(0.0, (g.height() - 5 * kTileGap) / 6.0);
+    const int row = index / 7, col = index % 7;
+    // On whole pixels, so every outline is crisp; the rounding spreads over the gaps.
+    const double x0 = std::round(g.left() + col * (w + kTileGap));
+    const double x1 = std::round(g.left() + col * (w + kTileGap) + w);
+    const double y0 = std::round(g.top() + row * (h + kTileGap));
+    const double y1 = std::round(g.top() + row * (h + kTileGap) + h);
+    return QRectF(x0, y0, x1 - x0, y1 - y0);
 }
 
 QDate MonthGridWidget::dateAt(const QPointF &pos) const
 {
-    const QRectF grid = gridArea();
-    if (!grid.contains(pos))
-        return QDate();
-    const int col = std::min(6, int((pos.x() - grid.left()) / (grid.width() / 7.0)));
-    const int row = std::min(5, int((pos.y() - grid.top()) / (grid.height() / 6.0)));
-    return gridStart().addDays(row * 7 + col);
+    for (int i = 0; i < 42; ++i)
+        if (tileRect(i).contains(pos))
+            return gridStart().addDays(i);
+    return QDate();
 }
 
-// ---------------- Mouse: press shows the button down, release activates ----------------
+// ---------------- Mouse: press shows the tile down, release activates ----------------
 
 void MonthGridWidget::mousePressEvent(QMouseEvent *event)
 {
@@ -162,13 +310,7 @@ void MonthGridWidget::mousePressEvent(QMouseEvent *event)
         QWidget::mousePressEvent(event);
         return;
     }
-    m_pressWeek = -1;
-    m_pressDate = QDate();
-    for (int row = 0; row < 6; ++row)
-        if (weekButtonRect(row).contains(event->position()))
-            m_pressWeek = row;
-    if (m_pressWeek < 0)
-        m_pressDate = dateAt(event->position());
+    m_pressDate = dateAt(event->position());
     update();
 }
 
@@ -178,171 +320,147 @@ void MonthGridWidget::mouseReleaseEvent(QMouseEvent *event)
         QWidget::mouseReleaseEvent(event);
         return;
     }
-    const int week = m_pressWeek;
-    const QDate pressedDate = m_pressDate;
-    m_pressWeek = -1;
+    const QDate pressed = m_pressDate;
     m_pressDate = QDate();
     update();
-
-    // Only counts if the release is over the same button that was pressed.
-    if (week >= 0 && weekButtonRect(week).contains(event->position()))
-        emit weekActivated(gridStart().addDays(week * 7));
-    else if (pressedDate.isValid() && dateAt(event->position()) == pressedDate)
-        emit dayActivated(pressedDate);
+    // Only counts if the release is over the tile that was pressed.
+    if (pressed.isValid() && dateAt(event->position()) == pressed)
+        emit dayActivated(pressed);
 }
 
 // ---------------- Painting ----------------
+
+void MonthGridWidget::paintTile(QPainter &p, int index, const TileLayout &layout)
+{
+    const QDate date = gridStart().addDays(index);
+    const bool inMonth = date.month() == m_state.currentDate().month();
+    CalendarTile::State s;
+    s.selected = date == m_state.currentDate();          // ST4
+    s.focus = s.selected && hasFocus();                  // F1: only with the keyboard (Tab)
+    s.pressed = date == m_pressDate;
+    s.muted = !inMonth;
+    s.hover = m_hover->amount(index);
+    const QRectF tile = tileRect(index);
+    const QColor textColor = CalendarTile::paint(p, tile, s);
+    const QRectF in = CalendarTile::contents(tile, s).adjusted(kPad, kPad, -kPad, -kPad);
+
+    const auto weather = m_weather.constFind(date);
+    const bool hasWeather = weather != m_weather.constEnd();
+    const bool hasNote = m_noteDates.contains(date);
+    const bool hasEvent = m_eventDates.contains(date);
+
+    // Top row: the number, and the picture right after it.
+    QFont number = numberFont(font());
+    if (s.selected)
+        number = semibold(number);                       // as selected buttons (K3)
+    p.setFont(number);
+    p.setPen(textColor);
+    const QRectF top(in.left(), in.top(), in.width(), kRowHeight);
+    p.drawText(top, Qt::AlignLeft | Qt::AlignVCenter, QString::number(date.day()));
+    const double pictureX = in.left() + numberWidth(font()) + kPairGap;
+    if (layout.picture && hasWeather) {
+        const QString name = WeatherIcons::conditionName(*weather);
+        if (!name.isEmpty()) {
+            p.setOpacity(inMonth ? 1.0 : 0.5);           // CAL1: muted beside the month
+            WeatherIcons::draw(p, name, QPointF(pictureX, top.center().y() - kPicture / 2.0), kPicture);
+            p.setOpacity(1.0);
+        }
+    }
+
+    const int count = markerCount(hasWeather, hasNote, hasEvent);
+    const double markerY = [&] {
+        switch (layout.arrangement) {
+        case Arrangement::TwoRows: return in.bottom() - kCaptionLine / 2.0;
+        case Arrangement::OneRow:  return top.center().y();
+        case Arrangement::Stacked: break;
+        }
+        return 0.0;
+    }();
+
+    switch (layout.arrangement) {
+    case Arrangement::TwoRows: {
+        // Below: high/low at the left, the markers at the right.
+        if (layout.highLow && hasWeather) {
+            p.setFont(captionFont(font()));
+            p.setPen(textColor);
+            p.drawText(QRectF(in.left(), in.bottom() - kCaptionLine, in.width(), kCaptionLine),
+                       Qt::AlignLeft | Qt::AlignVCenter,
+                       highLow(*weather, Units::fromSetting(m_repo.setting("units", "metric"))));
+        }
+        CalendarTile::paintMarkers(p, hasWeather, hasNote, hasEvent,
+                                   in.right() - CalendarTile::markersWidth(count), markerY);
+        break;
+    }
+    case Arrangement::OneRow:
+        CalendarTile::paintMarkers(p, hasWeather, hasNote, hasEvent,
+                                   in.right() - CalendarTile::markersWidth(count), markerY);
+        break;
+    case Arrangement::Stacked: {
+        if (layout.markersPerRow <= 0)
+            break;
+        // The markers fill the rows a tile with all three would use, from the top, so the
+        // tiles line up.
+        const QList<bool> has{hasWeather, hasNote, hasEvent};
+        QList<int> kinds;
+        for (int k = 0; k < 3; ++k)
+            if (has[k])
+                kinds << k;
+        const int rows = (int(kinds.size()) + layout.markersPerRow - 1) / layout.markersPerRow;
+        const int allRows = (3 + layout.markersPerRow - 1) / layout.markersPerRow;
+        const double firstY = in.bottom() - allRows * CalendarTile::kMarkerSize
+                            - (allRows - 1) * kRowGap + CalendarTile::kMarkerSize / 2.0;
+        for (int r = 0; r < rows; ++r) {
+            const auto part = kinds.mid(r * layout.markersPerRow, layout.markersPerRow);
+            CalendarTile::paintMarkers(p, part.contains(0), part.contains(1), part.contains(2),
+                                       in.left(), firstY + r * (CalendarTile::kMarkerSize + kRowGap));
+        }
+        break;
+    }
+    }
+}
 
 void MonthGridWidget::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
-
-    const QPalette pal = palette();
-    const auto theme = ThemeManager::instance()->colors();
-    const bool clay = ThemeManager::instance()->style() == Theme::Style::Clay;
-    const double radius = clay ? 14.0 : 0.0;
-    const double gap = clay ? 3.0 : 0.0;
-
-    const QDate current = m_state.currentDate();
-    const QDate today = QDate::currentDate();
-    const QDate start = gridStart();
-    const QRectF grid = gridArea();
-    const double cellW = grid.width() / 7.0;
-    const double cellH = grid.height() / 6.0;
-
-    auto cellRect = [&](int row, int col) {
-        return QRectF(grid.left() + col * cellW, grid.top() + row * cellH, cellW, cellH)
-                   .adjusted(gap, gap, -gap, -gap);
-    };
-
+    const auto c = ThemeManager::instance()->colors();
     if (!Artwork::isClay())                       // clay: the page behind paints the pattern
-        p.fillRect(rect(), pal.color(QPalette::Window));
+        p.fillRect(rect(), c.window);
 
-    // --- Weekday header (Sunday first) ---
-    // CAL5 (D61): while the mouse is over a day, or the keyboard is on one (the grid only
-    // takes the focus with Tab), that day's weekday name is Semibold, so its column stands
-    // out. Otherwise all the names are Regular.
-    QFont headerFont = font();
-    headerFont = textFont(Design::TextStyle::Caption, headerFont);
-    QFont markedFont = headerFont;
-    markedFont.setWeight(QFont::DemiBold);
+    const QDate start = gridStart();
+    const QRectF g = gridArea();
+    const double tileH = std::max(0.0, (g.height() - 5 * kTileGap) / 6.0);
+    const TileLayout layout = tileLayout(tileWidth(width()), tileH);
+
+    // --- Weekday names (Sunday first) ---
+    // CAL5: while the mouse is over a day, or the keyboard is on one (the grid only takes
+    // the focus with Tab), that day's weekday name is Semibold, so its column stands out.
+    const QFont names = textFont(Design::TextStyle::Caption, font());
     int markedCol = -1;
     if (m_hover->current() >= 0 && m_hover->current() < 42)
         markedCol = m_hover->current() % 7;
     else if (hasFocus())
-        markedCol = m_state.currentDate().dayOfWeek() % 7;          // Sunday (7) is column 0
-    p.setPen(pal.color(QPalette::WindowText));
+        markedCol = m_state.currentDate().dayOfWeek() % 7;       // Sunday (7) is column 0
+    p.setPen(c.text);
     for (int col = 0; col < 7; ++col) {
-        const QRectF r(grid.left() + col * cellW, 0, cellW, kHeaderHeight);
-        p.setFont(col == markedCol ? markedFont : headerFont);
+        const QRectF t = tileRect(col);
+        p.setFont(col == markedCol ? semibold(names) : names);
         // QLocale numbers days Monday=1 ... Sunday=7, so column 0 (Sunday) is 7.
-        p.drawText(r, Qt::AlignCenter, QLocale().dayName(col == 0 ? 7 : col, QLocale::ShortFormat));
+        p.drawText(QRectF(t.left(), 0, t.width(), kNamesHeight), Qt::AlignCenter,
+                   QLocale().dayName(col == 0 ? 7 : col, QLocale::ShortFormat));
     }
 
-    // --- The 42 cells ---
-    QFont dayFont = tabularDigits(font());
-    dayFont = textFont(Design::TextStyle::Body, dayFont);
-    QFont legendFont = font();
-    legendFont = textFont(Design::TextStyle::Caption, legendFont);
-    p.setFont(dayFont);
+    // --- The 42 tiles ---
+    for (int i = 0; i < 42; ++i)
+        paintTile(p, i, layout);
 
-    for (int row = 0; row < 6; ++row) {
-        for (int col = 0; col < 7; ++col) {
-            const QDate date = start.addDays(row * 7 + col);
-            const bool inMonth = date.month() == current.month();
-            const bool down = date == m_pressDate;
-            QRectF cell = cellRect(row, col);
-            if (down)
-                cell.translate(0, 2);                     // pressed: sink 2 px, no shadow
+    // --- Today's outline, after the tiles so no neighbour covers it (CAL1, C5) ---
+    const qint64 todayIndex = start.daysTo(QDate::currentDate());
+    if (todayIndex >= 0 && todayIndex < 42)
+        CalendarTile::paintToday(p, tileRect(int(todayIndex)));
 
-            if (clay && inMonth && !down) {               // soft shadow under the tile
-                QColor sh = theme.shadow;
-                sh.setAlpha(90);
-                p.setPen(Qt::NoPen);
-                p.setBrush(sh);
-                p.drawPath(ClayPaint::shape(cell.translated(0, 3), radius));
-            }
-            QColor base = inMonth ? pal.color(QPalette::Base) : pal.color(QPalette::Window);
-            if (down)
-                base = base.darker(112);
-            p.setPen(QPen(pal.color(QPalette::Mid), 1));
-            p.setBrush(base);
-            p.drawPath(ClayPaint::shape(cell, radius));
-            ClayPaint::drawHover(p, cell, radius, m_hover->amount(row * 7 + col));   // ST2
-            if (hasFocus() && date == current)
-                ClayPaint::drawFocusTint(p, cell, radius);    // F1: under the text
-
-            p.setPen(pal.color(inMonth ? QPalette::Active : QPalette::Disabled, QPalette::Text));
-            p.drawText(cell.adjusted(8, 6, -8, 0), Qt::AlignTop | Qt::AlignLeft,
-                       QString::number(date.day()));
-
-            // The day's conditions, top right (fainter on days of the neighbouring months).
-            const auto weatherIt = m_weather.constFind(date);
-            if (weatherIt != m_weather.constEnd()) {
-                const int s = int(qBound(20.0, qMin(cell.height() * 0.45, cell.width() * 0.38), 40.0));
-                p.setOpacity(inMonth ? 1.0 : 0.5);
-                WeatherIcons::draw(p, WeatherIcons::conditionName(*weatherIt),
-                                   QPointF(cell.right() - s - 6, cell.top() + 6), s);
-                p.setOpacity(1.0);
-            }
-
-            // Markers: one symbol per kind present, along the bottom of the cell.
-            double x = cell.left() + 16;
-            const double y = cell.bottom() - 16;
-            if (m_weather.contains(date))    { drawMarker(p, Marker::Weather, QPointF(x, y)); x += 22; }
-            if (m_noteDates.contains(date))  { drawMarker(p, Marker::Note, QPointF(x, y)); x += 22; }
-            if (m_eventDates.contains(date)) { drawMarker(p, Marker::Event, QPointF(x, y)); }
-        }
-    }
-
-    // --- "Open week" buttons ---
-    p.setFont(legendFont);
-    for (int row = 0; row < 6; ++row) {
-        const QRectF r = weekButtonRect(row);
-        const bool down = row == m_pressWeek;
-        if (clay) {
-            ClayPaint::drawRaised(p, r.adjusted(0, -2, 0, 6), 14, pal.color(QPalette::Button), down);
-        } else {
-            p.setPen(QPen(pal.color(QPalette::Mid), 1));
-            p.setBrush(down ? pal.color(QPalette::Mid) : pal.color(QPalette::Button));
-            p.drawPath(ClayPaint::shape(r, 4));
-        }
-        ClayPaint::drawHover(p, down ? r.translated(0, 2) : r, clay ? 14 : 4, m_hover->amount(100 + row));
-        p.setPen(pal.color(QPalette::ButtonText));
-        p.drawText(r.translated(0, down ? 2 : 0), Qt::AlignCenter, "Open week");
-    }
-
-    // --- Today's outline (drawn after the cells so neighbours can't overwrite it) ---
-    const qint64 todayIndex = start.daysTo(today);
-    if (todayIndex >= 0 && todayIndex < 42) {
-        const int row = int(todayIndex / 7), col = int(todayIndex % 7);
-        QRectF cell = cellRect(row, col);
-        if (start.addDays(todayIndex) == m_pressDate)
-            cell.translate(0, 2);
-        p.setPen(QPen(pal.color(QPalette::Highlight), 3));
-        p.setBrush(Qt::NoBrush);
-        p.drawPath(ClayPaint::shape(cell.adjusted(1.5, 1.5, -1.5, -1.5), radius));
-    }
-
-    // --- Legend ---
-    p.setFont(legendFont);
-    p.setPen(pal.color(QPalette::WindowText));
-    const double ly = height() - kLegendHeight / 2.0;
-    double x = 12;
-    auto legendItem = [&](Marker m, const QString &text) {
-        drawMarker(p, m, QPointF(x + 6, ly));
-        p.setPen(pal.color(QPalette::WindowText));
-        p.drawText(QRectF(x + 20, ly - 14, 300, 28), Qt::AlignVCenter | Qt::AlignLeft, text);
-        x += 20 + p.fontMetrics().horizontalAdvance(text) + 28;
-    };
-    legendItem(Marker::Weather, "Weather recorded");
-    legendItem(Marker::Note, "Note");
-    legendItem(Marker::Event, "Event");
-
-    p.setPen(QPen(pal.color(QPalette::Highlight), 3));
-    p.setBrush(Qt::NoBrush);
-    p.drawPath(ClayPaint::shape(QRectF(x, ly - 9, 22, 18), clay ? 6 : 0));
-    p.setPen(pal.color(QPalette::WindowText));
-    p.drawText(QRectF(x + 32, ly - 14, 300, 28), Qt::AlignVCenter | Qt::AlignLeft, "Today");
-}
+    // --- The key (K9) ---
+    CalendarTile::paintKey(p, {}, captionFont(font()),
+                           QRectF(kRingRoom, height() - keyHeight(width()), width() - 2 * kRingRoom,
+                                  keyHeight(width())));
+}

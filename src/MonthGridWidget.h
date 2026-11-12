@@ -11,7 +11,12 @@ class AppState;
 class HoverFade;
 class Repository;
 
-// Draws the whole month grid itself: no child widgets, one paintEvent.
+// Draws the whole month itself: no child widgets, one paintEvent.
+// - Weekday names above the columns (CAL5), six weeks of seven equal tiles (CAL3), the key
+//   below (K9).
+// - The tiles' contents follow CAL4: the first arrangement that fits every tile.
+// - Its height follows its width (heightForWidth): narrow tiles stack their contents and grow
+//   taller, and the page scrolls.
 class MonthGridWidget : public QWidget
 {
     Q_OBJECT
@@ -21,28 +26,48 @@ public:
 
     void reloadData();      // re-read markers from the database (call after saving)
 
+    // CAL4's arrangements, in the order they are tried.
+    enum class Arrangement { TwoRows, OneRow, Stacked };
+    struct TileLayout {
+        Arrangement arrangement = Arrangement::Stacked;
+        bool picture = true;            // false: dropped for lack of room (CAL4)
+        bool highLow = false;
+        int markersPerRow = 3;          // 0: dropped
+    };
+    TileLayout tileLayout(double tileWidth, double tileHeight) const;
+    Arrangement arrangement() const;    // for the current size (tests and the layout check)
+
+    bool hasHeightForWidth() const override { return true; }
+    int heightForWidth(int width) const override;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
+
 signals:
     void dayActivated(const QDate &date);       // clicked (pressed and released) on a day
-    void weekActivated(const QDate &weekStart); // clicked "Open week"
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
-    bool event(QEvent *event) override;                 // claims the arrow keys
+    bool event(QEvent *event) override;                 // claims the arrow keys; tooltips
     void keyPressEvent(QKeyEvent *event) override;      // arrows move a day, Enter opens it
     void focusInEvent(QFocusEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
-    QSize minimumSizeHint() const override { return QSize(720, 456); }   // 6 rows of 62 (number and markers clear), header, key
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void onDateChanged();
-    QDate gridStart() const;                    // first cell: a Sunday
-    QRectF gridArea() const;                    // the 6x7 cells, excluding header/legend
-    QRectF weekButtonRect(int row) const;
-    QDate dateAt(const QPointF &pos) const;     // invalid QDate if outside the cells
-    int hoverItemAt(const QPointF &pos) const;  // 0..41 for days, 100 + row for "Open week"
+    QDate gridStart() const;                    // first tile: a Sunday
+    double tileWidth(double width) const;
+    double minTileHeight(double tileWidth) const;   // the least CAL4 allows at that width
+    int keyHeight(double width) const;
+    QRectF gridArea() const;                    // the 6 x 7 tiles, without names and key
+    QRectF tileRect(int index) const;           // 0..41, on whole pixels
+    QDate dateAt(const QPointF &pos) const;     // invalid QDate between or outside the tiles
+    int hoverItemAt(const QPointF &pos) const;  // 0..41, or -1
     void updateAccessibleText();                // what a screen reader says: the selected day
+    QString describe(const QDate &date) const;  // Format::describeDay for one tile
+    void paintTile(QPainter &p, int index, const TileLayout &layout);
 
     AppState &m_state;
     Repository &m_repo;
@@ -50,7 +75,6 @@ private:
     QMap<QDate, WeatherDay> m_weather;
     QSet<QDate> m_noteDates;
     QSet<QDate> m_eventDates;
-    int m_pressWeek = -1;                       // "Open week" row being pressed
-    QDate m_pressDate;                          // day cell being pressed
+    QDate m_pressDate;                          // tile being pressed
     HoverFade *m_hover = nullptr;               // ST2's tint under the mouse
-};
+};

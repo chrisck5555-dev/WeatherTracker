@@ -1,5 +1,7 @@
 #include "Format.h"
 
+#include <QStringList>
+
 namespace Format {
 
 QString notRecorded() { return QStringLiteral("Not recorded"); }
@@ -32,6 +34,20 @@ QString temperature(const std::optional<double> &c, Units::System s)
 QString windSpeed(const std::optional<double> &k, Units::System s)
 {
     return k ? withUnit(Units::kmhToDisplay(*k, s), 1, Units::windUnit(s)) : notRecorded();
+}
+QString windGoingTo(const QString &fromDir)
+{
+    static const QStringList sides{"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    const int i = int(sides.indexOf(fromDir.trimmed().toUpper()));
+    return i < 0 ? QString() : sides[(i + 4) % 8];
+}
+QString wind(const std::optional<double> &k, const QString &fromDir, Units::System s)
+{
+    const QString to = windGoingTo(fromDir);
+    if (!k)
+        return to.isEmpty() ? notRecorded() : "Going to the " + to;
+    const QString speed = windSpeed(k, s);
+    return to.isEmpty() ? speed : speed + " going to the " + to;
 }
 QString humidity(const std::optional<double> &p)
 {

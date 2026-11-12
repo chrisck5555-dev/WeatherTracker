@@ -170,6 +170,30 @@ void drawOverlay(QPainter &p, const QRectF &r, double radius, const QColor &over
     p.restore();
 }
 
+void drawRaisedEdge(QPainter &p, const QRectF &shapeRect, double radius, const QColor &edge,
+                    double lift)
+{
+    const auto *themes = ThemeManager::instance();
+    if (!themes || lift <= 0.01)
+        return;
+    const auto c = themes->colors();
+    const bool dark = c.text.lightnessF() > c.window.lightnessF();
+    // Toward the text colour: darker in light looks, lighter in dark ones.
+    const QColor shade = Theme::mix(edge, c.text, 0.28 * lift);
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing);
+    if (dark)
+        p.setClipRect(QRectF(shapeRect.left() - 1, shapeRect.top() - 1,
+                             shapeRect.width() + 2, radius + 1));
+    else
+        p.setClipRect(QRectF(shapeRect.left() - 1, shapeRect.bottom() - radius,
+                             shapeRect.width() + 2, radius + 2));
+    p.setPen(QPen(shade, 1));
+    p.setBrush(Qt::NoBrush);
+    p.drawPath(shape(shapeRect.adjusted(0.5, 0.5, -0.5, -0.5), radius - 0.5));
+    p.restore();
+}
+
 void drawHover(QPainter &p, const QRectF &r, double radius, double amount)
 {
     const auto *themes = ThemeManager::instance();
