@@ -289,6 +289,7 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
         p.translate(-QPointF(w->mapTo(root, QPoint(0, 0))));
         Artwork::paintPage(p, QRectF(root->rect()), w->palette().color(QPalette::Window));
     };
+    m_settings->footer()->paintBackground = m_editor->footer()->paintBackground;   // Done's strip
     m_panelHost = new PanelHost(root);            // Search and Go to date appear on top of the window
     m_panelHost->setUnderlying(m_pages);
     m_transition = new ViewTransition(root);      // short fades and slides between views

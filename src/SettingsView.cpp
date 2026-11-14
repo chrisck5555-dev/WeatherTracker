@@ -1,6 +1,7 @@
 #include "SettingsView.h"
 
 #include <algorithm>
+#include <functional>
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -15,6 +16,7 @@
 #include <QLabel>
 #include <QLocale>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
@@ -25,6 +27,10 @@
 #include <cmath>
 
 #include "AppLog.h"
+#include "Card.h"
+#include "ChoiceRow.h"
+#include "EditorView.h"
+#include "FlowLayout.h"
 #include "Backups.h"
 #include "Confirm.h"
 #include "Display.h"
@@ -46,229 +52,292 @@ QLabel *heading(const QString &text)
     return l;
 }
 
-QPushButton *choiceButton(const QString &text)
+// A Semibold Body line that names a sub-group inside a card (H3: weight before size).
+QLabel *subHeading(const QString &text)
+{
+    auto *l = new QLabel(text);
+    QFont f = l->font();
+    f.setWeight(QFont::DemiBold);
+    l->setFont(f);
+    return l;
+}
+
+// A paragraph at most 540 px wide (T4), filling from the left (an HBox with a stretch keeps
+// its height-for-width; see the handoff's lessons).
+QWidget *paragraph(QLabel *label)
+{
+    label->setWordWrap(true);
+    label->setMaximumWidth(Design::kParagraphMaxWidth);
+    auto *holder = new QWidget;
+    auto *row = new QHBoxLayout(holder);
+    row->setContentsMargins(0, 0, 0, 0);
+    row->setSpacing(0);
+    row->addWidget(label, 1);
+    row->addStretch(0);
+    return holder;
+}
+
+QWidget *paragraph(const QString &text)
+{
+    auto *l = new QLabel(text);
+    l->setTextFormat(Qt::PlainText);
+    return paragraph(l);
+}
+
+// An ordinary button: as wide as its words, 44 high (Z1, B6), with a tooltip (TP4).
+QPushButton *actionButton(const QString &text, const QString &tooltip)
 {
     auto *b = new QPushButton(text);
-    b->setCheckable(true);
-    // Never narrower than its text needs (L4): a row that doesn't fit scrolls instead.
-    b->setMinimumSize(std::max(180, b->sizeHint().width()), 60);
+    b->setMinimumHeight(Design::kTarget);
+    b->setToolTip(tooltip);
     return b;
 }
 
-QPushButton *smallButton(const QString &text)
+// A row of buttons that wraps instead of scrolling sideways (RZ2, SC1).
+QWidget *buttonRow(std::initializer_list<QPushButton *> buttons)
 {
-    auto *b = new QPushButton(text);
-    b->setMinimumSize(std::max(200, b->sizeHint().width()), 46);
-    return b;
+    auto *holder = new QWidget;
+    auto *flow = new FlowLayout(holder, Design::kGapButtons, Design::kGapButtons);   // S2
+    flow->setContentsMargins(0, 0, 0, 0);
+    for (QPushButton *b : buttons)
+        flow->addWidget(b);
+    QSizePolicy policy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    policy.setHeightForWidth(true);
+    holder->setSizePolicy(policy);
+    return holder;
 }
+
+// The page under the cards: it paints their shadows (Card::paintShadows).
+class SettingsPage : public QWidget
+{
+public:
+    using QWidget::QWidget;
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        Card::paintShadows(p, this);
+    }
+};
 
 } // namespace
 
 SettingsView::SettingsView(Repository &repo, QWidget *parent)
     : QWidget(parent)
     , m_repo(repo)
-    , m_unitGroup(new QButtonGroup(this))
-    , m_sizeGroup(new QButtonGroup(this))
-    , m_styleGroup(new QButtonGroup(this))
-    , m_brightGroup(new QButtonGroup(this))
 {
     QFont f = font();
     f = textFont(Design::TextStyle::Body, f);
     setFont(f);
 
-    auto *title = new QLabel("Settings");
-    title->setStyleSheet(textStyleSheet(Design::TextStyle::Title));
-
-    // --- Units: ids are the enum values ---
-    auto *unitRow = new QHBoxLayout;
-    auto *metric = choiceButton("Metric\n\u00B0C, km/h, mm, hPa");
-    auto *imperial = choiceButton("Imperial\n\u00B0F, mph, inches, inHg");
-    m_unitGroup->addButton(metric, static_cast<int>(Units::System::Metric));
-    m_unitGroup->addButton(imperial, static_cast<int>(Units::System::Imperial));
-    unitRow->addWidget(metric);
-    unitRow->addWidget(imperial);
-    unitRow->addStretch(1);
+    // --- Units ---
+    m_unitRow = new ChoiceRow("Units");
+    m_unitRow->addChoice(static_cast<int>(Units::System::Metric), "Metric",
+                         "\u00B0C, km/h, mm and hPa: degrees Celsius, kilometres an hour, "
+                         "millimetres and hectopascals.");
+    m_unitRow->addChoice(static_cast<int>(Units::System::Imperial), "Imperial",
+                         "\u00B0F, mph, inches and inHg: degrees Fahrenheit, miles an hour, "
+                         "inches and inches of mercury.");
 
     // --- Text size: all three, on every screen (Z4) ---
-    auto *sizeRow = new QHBoxLayout;
-    for (auto s : TextSize::all()) {
-        auto *b = choiceButton(TextSize::label(s));
-        m_sizeGroup->addButton(b, static_cast<int>(s));
-        sizeRow->addWidget(b);
-    }
-    sizeRow->addStretch(1);
-
+    m_sizeRow = new ChoiceRow("Text size");
+    for (auto s : TextSize::all())
+        m_sizeRow->addChoice(static_cast<int>(s), TextSize::label(s),
+                             "Makes everything in the window this size. Weather Tracker restarts to use it when you press Done.");
     m_sizeNote = new QLabel;
-    m_sizeNote->setWordWrap(true);
+    m_sizeNote->setTextFormat(Qt::PlainText);
 
     // --- Look: style and brightness are independent choices ---
-    auto *styleRow = new QHBoxLayout;
-    auto *clay = choiceButton("Soft\n(clay look)");
-    auto *contrast = choiceButton("High contrast\n(bold outlines)");
-    m_styleGroup->addButton(clay, static_cast<int>(Theme::Style::Clay));
-    m_styleGroup->addButton(contrast, static_cast<int>(Theme::Style::HighContrast));
-    styleRow->addWidget(clay);
-    styleRow->addWidget(contrast);
-    styleRow->addStretch(1);
-
-    auto *brightRow = new QHBoxLayout;
-    for (auto b : {Theme::Brightness::Light, Theme::Brightness::Dark, Theme::Brightness::System}) {
-        const QString text = b == Theme::Brightness::Light ? "Light"
-                           : b == Theme::Brightness::Dark  ? "Dark" : "Same as Windows";
-        auto *btn = choiceButton(text);
-        m_brightGroup->addButton(btn, static_cast<int>(b));
-        brightRow->addWidget(btn);
-    }
-    brightRow->addStretch(1);
+    m_styleRow = new ChoiceRow("Style");
+    m_styleRow->addChoice(static_cast<int>(Theme::Style::Clay), "Soft",
+                          "Soft colours and rounded shapes.");
+    m_styleRow->addChoice(static_cast<int>(Theme::Style::HighContrast), "High contrast",
+                          "Strong colours and thick outlines, easiest to see.");
+    m_brightRow = new ChoiceRow("Brightness");
+    m_brightRow->addChoice(static_cast<int>(Theme::Brightness::Light), "Light", "Dark text on a light background.");
+    m_brightRow->addChoice(static_cast<int>(Theme::Brightness::Dark), "Dark", "Light text on a dark background.");
+    m_brightRow->addChoice(static_cast<int>(Theme::Brightness::System), "Same as Windows",
+                           "Light or dark, whichever Windows is set to.");
 
     m_motion = new QCheckBox("Short animations when the view changes");
-    m_motion->setMinimumHeight(44);
+    m_motion->setMinimumHeight(Design::kTarget);
     m_motion->setToolTip("They are also off whenever Windows' animation effects are turned off.");
     m_motion->setVisible(Display::kViewAnimationsInThisVersion);   // hidden while they are off
 
-    // --- Problem report ---
-    auto *reportButton = new QPushButton("Show my problem report");
-    reportButton->setMinimumSize(240, 46);
-    auto *reportNote = new QLabel("If something goes wrong, press this and attach the file "
-                                  "it shows you to an email. It never contains your weather "
-                                  "values or notes.");
-    reportNote->setWordWrap(true);
+    // --- Help ---
+    auto *guideButton = actionButton("Open the user guide", "How to use Weather Tracker, step by step (F1).");
+    auto *tourButton = actionButton("Show the tour again", "The short tour from the first start.");
 
-    // --- Data and backups ---
+    // --- Your data and backups ---
     auto *dataNote = new QLabel(QString("Your weather data is stored in:\n%1")
                                     .arg(QDir::toNativeSeparators(m_repo.path())));
-    dataNote->setWordWrap(true);
     dataNote->setTextFormat(Qt::PlainText);           // folder names are shown as-is
     dataNote->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_backupInfo = new QLabel;
-    m_backupInfo->setWordWrap(true);
     m_backupInfo->setTextFormat(Qt::PlainText);
     m_backupInfo->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-    auto *backupNowButton = smallButton("Back up now");
-    auto *restoreButton = smallButton("Restore from backup\u2026");
-    auto *openFolderButton = smallButton("Open backups folder");
-    auto *saveCopyButton = smallButton("Save a copy to\u2026");
-    auto *loadCopyButton = smallButton("Load a copy from\u2026");
-    auto *openDataButton = smallButton("Open data folder");
-    auto *eraseButton = smallButton("Erase all my weather data\u2026");
-    auto *deleteBackupsButton = smallButton("Delete all backups\u2026");
-    auto *dataGrid = new QGridLayout;
-    dataGrid->addWidget(backupNowButton, 0, 0);
-    dataGrid->addWidget(restoreButton, 0, 1);
-    dataGrid->addWidget(openFolderButton, 0, 2);
-    dataGrid->addWidget(saveCopyButton, 1, 0);
-    dataGrid->addWidget(loadCopyButton, 1, 1);
-    dataGrid->addWidget(openDataButton, 1, 2);
-    dataGrid->addWidget(eraseButton, 2, 0);
-    dataGrid->addWidget(deleteBackupsButton, 2, 1);
-    dataGrid->setColumnStretch(3, 1);
+    auto *backupNowButton = actionButton("Back up now", "Make a backup of your weather data now.");
+    auto *restoreButton = actionButton("Restore from backup…", "Go back to the data in one of the backups.");
+    auto *openFolderButton = actionButton("Open backups folder", "Show the backups folder in File Explorer.");
+    auto *saveCopyButton = actionButton("Save a copy to…", "Save a copy of your data, for example on a USB stick.");
+    auto *loadCopyButton = actionButton("Load a copy from…", "Use a copy saved on another computer.");
+    auto *openDataButton = actionButton("Open data folder", "Show the folder with your weather data in File Explorer.");
     auto *copyNote = new QLabel("To move your data to another computer: press \"Save a copy to\", "
                                 "choose the USB stick, then on the other computer press "
                                 "\"Load a copy from\" and choose that file.");
-    copyNote->setWordWrap(true);
+    // B4: the erase buttons sit apart from the everyday ones, under their own name.
+    auto *eraseButton = actionButton("Erase all weather data…", "Asks first. A safety copy is saved before anything is erased.");
+    auto *deleteBackupsButton = actionButton("Delete all backups…", "Asks first. Your weather data is not changed.");
 
-    // --- Your privacy ---
+    // --- Your privacy (WR2: the program is "we") ---
     auto *privacyNote = new QLabel(
-        "Everything you type stays on this computer, in the data folder shown above. "
-        "Backups are kept in your Documents folder.\n\n"
-        "The program uses the internet only when you press \"Check for updates\" (under "
-        "About). It then asks GitHub for the newest version number. Nothing you have "
-        "written is ever sent.");
-    privacyNote->setWordWrap(true);
-    privacyNote->setTextFormat(Qt::PlainText);
-
+        "Everything you type stays on this computer, in the data folder shown under "
+        "\"Your data and backups\". Backups are kept in your Documents folder.\n\n"
+        "We use the internet only when you press \"Check for updates\" (under About), to ask "
+        "GitHub for the newest version number. Nothing you have written is ever sent.");
     m_allowUpdates = new QCheckBox("Allow \"Check for updates\" to use the internet");
-    m_allowUpdates->setMinimumHeight(44);
+    m_allowUpdates->setMinimumHeight(Design::kTarget);
+    m_allowUpdates->setToolTip("When this is off, the program never uses the internet.");
+
+    // --- Having a problem? ---
+    auto *reportButton = actionButton("Show my problem report", "See the report first; nothing is sent.");
+    auto *reportNote = new QLabel("If something goes wrong, press this and attach the file "
+                                  "it shows you to an email. It never contains your weather "
+                                  "values or notes.");
 
     // --- About ---
     auto *about = new QLabel(QString("Weather Tracker version %1\nCreated by %2\n"
                                      "Built with Qt %3, used under the LGPL v3 license (qt.io).")
                                  .arg(QString::fromUtf8(APP_VERSION), QString::fromUtf8(APP_AUTHOR),
                                       QString::fromLatin1(qVersion())));
-    about->setWordWrap(true);
-    m_updateButton = smallButton("Check for updates");
+    m_updateButton = actionButton("Check for updates", "Asks GitHub for the newest version number.");
     auto *updateButton = m_updateButton;
-    m_updateNote = new QLabel("Checking for updates is turned off under \"Your privacy\".");
-    m_updateNote->setWordWrap(true);
     m_updates = new UpdateChecker(this);
 
-    // --- Help ---
-    auto *guideButton = smallButton("Open the user guide");
-    auto *tourButton = smallButton("Show the tour again");
-    auto *helpRow = new QHBoxLayout;
-    helpRow->addWidget(guideButton);
-    helpRow->addWidget(tourButton);
-    helpRow->addStretch(1);
+    // --- The cards (plan 2.7), in 1.1.0's order ---
+    auto card = [](const QString &title) {
+        auto *c = new Card;
+        c->body()->setSpacing(Design::kGapAreas);          // 12 inside, 16 between cards (S3)
+        c->body()->addWidget(heading(title));
+        c->body()->addSpacing(Design::kGapHeader - Design::kGapAreas);   // heading to content: 8
+        return c;
+    };
+    auto *units = card("Units");
+    units->body()->addWidget(m_unitRow);
+    auto *size = card("Text size");
+    size->body()->addWidget(m_sizeRow);
+    size->body()->addWidget(paragraph(m_sizeNote));
+    setSizeNote(QString());
+    auto *look = card("Look");
+    // Style and Brightness side by side, the second going under the first when they don't
+    // fit (Chris, 2026-11-13).
+    auto group = [](const QString &name, QWidget *row) {
+        auto *g = new QWidget;
+        auto *v = new QVBoxLayout(g);
+        v->setContentsMargins(0, 0, 0, 0);
+        v->setSpacing(Design::kGapHeader);
+        v->addWidget(subHeading(name));
+        v->addWidget(row);
+        return g;
+    };
+    auto *lookGroups = new QWidget;
+    auto *lookFlow = new FlowLayout(lookGroups, Design::kGapCards * 3 / 2, Design::kGapAreas);  // 24, 12
+    lookFlow->setContentsMargins(0, 0, 0, 0);
+    lookFlow->addWidget(group("Style", m_styleRow));
+    lookFlow->addWidget(group("Brightness", m_brightRow));
+    QSizePolicy lookPolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    lookPolicy.setHeightForWidth(true);
+    lookGroups->setSizePolicy(lookPolicy);
+    look->body()->addWidget(lookGroups);
+    look->body()->addWidget(m_motion, 0, Qt::AlignLeft);
+    auto *help = card("Help");
+    help->body()->addWidget(buttonRow({guideButton, tourButton}));
+    auto *data = card("Your data and backups");
+    data->body()->addWidget(paragraph(dataNote));
+    data->body()->addWidget(paragraph(m_backupInfo));
+    data->body()->addWidget(buttonRow({backupNowButton, restoreButton, openFolderButton,
+                                       saveCopyButton, loadCopyButton, openDataButton}));
+    data->body()->addWidget(paragraph(copyNote));
+    data->body()->addSpacing(Design::kGapCards - Design::kGapAreas);   // B4: apart, 16 above
+    data->body()->addWidget(subHeading("Erasing"));
+    data->body()->addWidget(buttonRow({eraseButton, deleteBackupsButton}));
+    auto *privacy = card("Your privacy");
+    privacy->body()->addWidget(paragraph(privacyNote));
+    privacy->body()->addWidget(m_allowUpdates, 0, Qt::AlignLeft);
+    auto *problem = card("Having a problem?");
+    problem->body()->addWidget(paragraph(reportNote));
+    problem->body()->addWidget(buttonRow({reportButton}));
+    auto *aboutCard = card("About");
+    aboutCard->body()->addWidget(paragraph(about));
+    aboutCard->body()->addWidget(buttonRow({updateButton}));
+    m_cards = {units, size, look, help, data, privacy, problem, aboutCard};
+    for (Card *c : m_cards)
+        c->body()->addStretch(1);       // content at the top when a card is taller (beside another)
+    units->installEventFilter(this);    // the pair keeps one height
+    size->installEventFilter(this);
 
-    // --- Scrollable content ---
-    auto *content = new QWidget;
-    auto *body = new QVBoxLayout(content);
-    body->addWidget(title);
-    body->addSpacing(12);
-    body->addWidget(heading("Units"));
-    body->addLayout(unitRow);
-    body->addSpacing(16);
-    body->addWidget(heading("Text size"));
-    body->addLayout(sizeRow);
-    body->addWidget(m_sizeNote);
-    body->addSpacing(16);
-    body->addWidget(heading("Look"));
-    body->addLayout(styleRow);
-    body->addLayout(brightRow);
-    body->addWidget(m_motion);
-    body->addSpacing(16);
-    body->addWidget(heading("Your data and backups"));
-    body->addWidget(dataNote);
-    body->addWidget(m_backupInfo);
-    body->addLayout(dataGrid);
-    body->addWidget(copyNote);
-    body->addSpacing(16);
-    body->addWidget(heading("Your privacy"));
-    body->addWidget(privacyNote);
-    body->addWidget(m_allowUpdates);
-    body->addSpacing(16);
-    body->addWidget(heading("Help"));
-    body->addLayout(helpRow);
-    body->addSpacing(16);
-    body->addWidget(heading("Having a problem?"));
-    body->addWidget(reportButton, 0, Qt::AlignLeft);
-    body->addWidget(reportNote);
-    body->addSpacing(16);
-    body->addWidget(heading("About"));
-    body->addWidget(about);
-    body->addWidget(updateButton, 0, Qt::AlignLeft);
-    body->addWidget(m_updateNote);
-    body->addStretch(1);
+    // --- The page: the title, then the cards in one or two columns ---
+    auto *title = new QLabel("Settings");
+    title->setStyleSheet(textStyleSheet(Design::TextStyle::Title));
+    m_page = new SettingsPage;
+    for (Card *c : m_cards)
+        c->setParent(m_page);
+    auto *pageLayout = new QVBoxLayout(m_page);
+    pageLayout->setContentsMargins(Design::kWindowMargin, Design::kWindowMargin,
+                                   Design::kWindowMargin, Design::kWindowMargin);   // L8
+    pageLayout->setSpacing(Design::kGapCards);
+    pageLayout->addWidget(title);
+    m_columns = new QHBoxLayout;
+    m_columns->setContentsMargins(0, 0, 0, 0);
+    m_columns->setSpacing(Design::kGapCards);
+    pageLayout->addLayout(m_columns);
+    pageLayout->addStretch(1);
 
     auto *scroll = new QScrollArea;
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setWidget(content);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);    // SC1: never sideways
+    scroll->setWidget(m_page);
     scroll->viewport()->setAutoFillBackground(false);   // let the background show through
-    content->setAutoFillBackground(false);
+    m_page->setAutoFillBackground(false);
 
-    // --- Done stays pinned at the bottom ---
-    auto *doneButton = new QPushButton("Done");
-    doneButton->setMinimumSize(120, 44);
-    auto *doneRow = new QHBoxLayout;
-    doneRow->addStretch(1);
-    doneRow->addWidget(doneButton);
+    // --- Done stays pinned at the bottom right, with SC4's hard edge (plan 2.7, K3) ---
+    // [Use the default settings] on the left; [Done] (primary) and [Cancel] on the right,
+    // the action before the safe answer, as in the editor (DLG3, K3). Chris, 2026-11-13:
+    // "a cancel/revert changes button that leaves the settings window without changing any
+    // settings", and "a Set to Default Settings button".
+    m_footer = new EditorFooter;
+    auto *footerRow = static_cast<QHBoxLayout *>(m_footer->layout());
+    m_defaultsButton = actionButton("Use the default settings",
+        "Units, text size, look and the internet setting go back to how they were when "
+        "Weather Tracker was new. Your weather data is not changed. Cancel undoes this.");
+    footerRow->insertWidget(0, m_defaultsButton);
+    m_doneButton = actionButton("Done", "Keep the changes and go back to the calendar.");
+    m_doneButton->setProperty("wtKind", "primary");
+    m_cancelButton = actionButton("Cancel", "Go back to the calendar and undo the changes to these "
+                                            "settings. Backups and erasing can't be undone here.");
+    footerRow->addWidget(m_doneButton);
+    footerRow->addWidget(m_cancelButton);
 
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
     layout->addWidget(scroll, 1);
-    layout->addLayout(doneRow);
+    layout->addWidget(m_footer);
+    arrange();
 
     // --- Wiring ---
-    connect(m_unitGroup, &QButtonGroup::idClicked, this, [this](int id) {
+    connect(m_unitRow, &ChoiceRow::chosenChanged, this, [this](int id) {
         m_repo.setSetting("units", Units::toSetting(static_cast<Units::System>(id)));
     });
-    connect(m_sizeGroup, &QButtonGroup::idClicked, this,
+    connect(m_sizeRow, &ChoiceRow::chosenChanged, this,
             [this](int id) { chooseSize(static_cast<TextSize::Size>(id)); });
-    connect(m_styleGroup, &QButtonGroup::idClicked, this, [](int id) {
+    connect(m_styleRow, &ChoiceRow::chosenChanged, this, [](int id) {
         ThemeManager::instance()->setStyle(static_cast<Theme::Style>(id));
     });
-    connect(m_brightGroup, &QButtonGroup::idClicked, this, [](int id) {
+    connect(m_brightRow, &ChoiceRow::chosenChanged, this, [](int id) {
         ThemeManager::instance()->setBrightness(static_cast<Theme::Brightness>(id));
     });
     connect(reportButton, &QPushButton::clicked, this, &SettingsView::showProblemReport);
@@ -338,6 +407,15 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
     });
 
     connect(updateButton, &QPushButton::clicked, this, [this, updateButton] {
+        // Turned off under "Your privacy": say so, and offer to turn it on (Chris, 2026-11-14).
+        if (!m_allowUpdates->isChecked()) {
+            if (!Confirm::destructive(this, "Checking for updates is turned off",
+                                      "Checking needs the internet, which is turned off under "
+                                      "\"Your privacy\". Turn it on and check now?",
+                                      "Keep it off", "Turn on and check"))
+                return;
+            m_allowUpdates->setChecked(true);            // saved, and the checker is allowed
+        }
         updateButton->setEnabled(false);
         updateButton->setText("Checking\u2026");
         m_updates->check();
@@ -370,18 +448,20 @@ SettingsView::SettingsView(Repository &repo, QWidget *parent)
             break;
         }
     });
-    connect(doneButton, &QPushButton::clicked, this, &SettingsView::done);
+    connect(m_doneButton, &QPushButton::clicked, this, &SettingsView::finish);
+    connect(m_cancelButton, &QPushButton::clicked, this, &SettingsView::cancel);
+    connect(m_defaultsButton, &QPushButton::clicked, this, &SettingsView::useDefaults);
 }
 
 void SettingsView::refreshBackupInfo()
 {
     const auto backups = Backups::list();
     if (backups.isEmpty()) {
-        m_backupInfo->setText("No backup has been made yet. The program makes one every day.");
+        m_backupInfo->setText("No backup has been made yet. We make one every day.");
         return;
     }
     const auto &latest = backups.first();
-    m_backupInfo->setText(QString("Last backup: %1. The program keeps the newest %2 days in:\n%3")
+    m_backupInfo->setText(QString("Last backup: %1. We keep the newest %2 days in:\n%3")
         .arg(QLocale().toString(latest.saved, "MMMM d, yyyy 'at' h:mm AP"))
         .arg(Backups::kKeep)
         .arg(QDir::toNativeSeparators(Backups::defaultFolder())));
@@ -417,24 +497,136 @@ void SettingsView::replaceData(const QString &file, const QString &what)
     QCoreApplication::quit();
 }
 
+// The note under the text sizes takes no room while it's empty.
+void SettingsView::setSizeNote(const QString &text)
+{
+    m_sizeNote->setText(text);
+    m_sizeNote->parentWidget()->setVisible(!text.isEmpty());
+}
+
 void SettingsView::open()
 {
-    const auto units = Units::fromSetting(m_repo.setting("units", "metric"));
-    m_unitGroup->button(static_cast<int>(units))->setChecked(true);
-
-    const auto saved = TextSize::fromSetting(m_repo.setting("text_size", "normal"));
-    m_sizeGroup->button(static_cast<int>(saved))->setChecked(true);
-
-    m_styleGroup->button(static_cast<int>(ThemeManager::instance()->style()))->setChecked(true);
-    m_brightGroup->button(static_cast<int>(ThemeManager::instance()->brightness()))->setChecked(true);
+    m_before.units = m_repo.setting("units", "metric");
+    m_before.motion = m_repo.setting("motion", "on");
+    m_before.updates = m_repo.setting("update_check", "on");
+    m_before.style = ThemeManager::instance()->style();
+    m_before.brightness = ThemeManager::instance()->brightness();
+    m_unitRow->setChosen(static_cast<int>(Units::fromSetting(m_before.units)));
+    m_pendingSize = TextSize::fromSetting(m_repo.setting("text_size", "normal"));
+    m_sizeRow->setChosen(static_cast<int>(m_pendingSize));
+    m_styleRow->setChosen(static_cast<int>(ThemeManager::instance()->style()));
+    m_brightRow->setChosen(static_cast<int>(ThemeManager::instance()->brightness()));
 
     {
         const QSignalBlocker quiet(m_motion);
         m_motion->setChecked(m_repo.setting("motion", "on") != "off");
     }
-    m_sizeNote->clear();
+    setSizeNote(QString());
     refreshBackupInfo();
     refreshPrivacy();
+}
+
+// Plan 2.7: two columns of cards when the window is at least 1,100 px wide, one otherwise.
+// Each column stacks on its own, so a tall card never leaves a gap beside it. Tab follows
+// the reading order: down the left column, then the right (KB1).
+void SettingsView::arrange()
+{
+    const bool two = width() >= kTwoColumnWidth;
+    const int page = width() - 2 * Design::kWindowMargin;
+    const int column = two ? (page - Design::kGapCards) / 2 : page;
+    // Units and Text size stay two cards of the same width, side by side only when each
+    // half holds its buttons on one line, stacked otherwise (Chris, 2026-11-13 and 11-14).
+    const int half = std::max(m_cards[0]->sizeHint().width(), m_cards[1]->sizeHint().width());
+    const bool pair = 2 * half + Design::kGapCards <= column;
+    if (m_columns->count() > 0 && two == m_twoColumns && pair == m_pairUnits)
+        return;
+    m_twoColumns = two;
+    m_pairUnits = pair;
+    matchPairHeights();
+    std::function<void(QLayout *)> empty = [&empty](QLayout *l) {
+        while (QLayoutItem *item = l->takeAt(0)) {
+            if (QLayout *inner = item->layout())
+                empty(inner);
+            delete item;
+        }
+    };
+    empty(m_columns);
+    // m_cards: units, size, look, help, data, privacy, problem, about.
+    auto stack = [this, pair](const QList<Card *> &cards) {
+        auto *v = new QVBoxLayout;
+        v->setContentsMargins(0, 0, 0, 0);
+        v->setSpacing(Design::kGapCards);
+        for (Card *c : cards) {
+            if (c == m_cards[1] && pair)
+                continue;                                  // beside Units
+            if (c == m_cards[0] && pair) {
+                auto *h = new QHBoxLayout;
+                h->setContentsMargins(0, 0, 0, 0);
+                h->setSpacing(Design::kGapCards);
+                h->addWidget(m_cards[0], 1);                 // the same width
+                h->addWidget(m_cards[1], 1);
+                v->addLayout(h);
+                continue;
+            }
+            v->addWidget(c);
+        }
+        v->addStretch(1);
+        return v;
+    };
+    // Two columns: the settings she changes on the left, with About at the bottom; her data
+    // on the right (Chris, 2026-11-13).
+    const QList<Card *> left = {m_cards[0], m_cards[1], m_cards[2], m_cards[3], m_cards[6], m_cards[7]};
+    const QList<Card *> right = {m_cards[4], m_cards[5]};
+    if (two) {
+        m_columns->addLayout(stack(left), 1);
+        m_columns->addLayout(stack(right), 1);
+    } else {
+        m_columns->addLayout(stack(m_cards), 1);
+    }
+    const QList<Card *> order = two ? left + right : m_cards;
+    QWidget *previous = nullptr;
+    for (Card *c : order) {
+        for (QWidget *w : c->findChildren<QWidget *>()) {
+            if (w->focusPolicy() == Qt::NoFocus)
+                continue;
+            if (previous)
+                QWidget::setTabOrder(previous, w);
+            previous = w;
+        }
+    }
+    for (QWidget *w : {static_cast<QWidget *>(m_defaultsButton), static_cast<QWidget *>(m_doneButton),
+                       static_cast<QWidget *>(m_cancelButton)}) {
+        if (previous)
+            QWidget::setTabOrder(previous, w);
+        previous = w;
+    }
+}
+
+void SettingsView::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    arrange();
+}
+
+// Side by side, Units and Text size are always the same height (Chris, 2026-11-14): each
+// is held at least as tall as the other needs at its width.
+bool SettingsView::eventFilter(QObject *watched, QEvent *event)
+{
+    if (event->type() == QEvent::Resize && (watched == m_cards[0] || watched == m_cards[1]))
+        matchPairHeights();
+    return QWidget::eventFilter(watched, event);
+}
+
+void SettingsView::matchPairHeights()
+{
+    int h = 0;
+    if (m_pairUnits)
+        for (Card *c : {m_cards[0], m_cards[1]})
+            h = std::max(h, c->hasHeightForWidth() ? c->heightForWidth(c->width())
+                                                   : c->sizeHint().height());
+    for (Card *c : {m_cards[0], m_cards[1]})
+        if (c->minimumHeight() != h)
+            c->setMinimumHeight(h);
 }
 
 void SettingsView::refreshPrivacy()
@@ -445,8 +637,6 @@ void SettingsView::refreshPrivacy()
         m_allowUpdates->setChecked(updates);
     }
     m_updates->setAllowed(updates);
-    m_updateButton->setEnabled(updates);
-    m_updateNote->setVisible(!updates);
 }
 
 void SettingsView::showProblemReport()
@@ -551,25 +741,65 @@ void SettingsView::deleteAllBackups()
 
 void SettingsView::chooseSize(TextSize::Size size)
 {
-    m_repo.setSetting("text_size", TextSize::toSetting(size));
+    // Chosen now, used when she presses Done (Cancel forgets it).
+    m_pendingSize = size;
+    const bool same = std::abs(TextSize::factor(size) - Display::currentScaleFactor()) < 0.001;
+    setSizeNote(same ? QString()
+                     : QString("Weather Tracker restarts to use this size when you press Done."));
+}
 
-    const double wanted = TextSize::factor(size);
-    if (std::abs(wanted - Display::currentScaleFactor()) < 0.001) {
-        m_sizeNote->clear();                     // already showing at this size
-        return;
-    }
-
-    if (Confirm::destructive(this, "Change the text size?",
-                             "The program needs to restart to change the text size.\n"
-                             "Your weather records are safe.",
-                             "Not now", "Restart now")) {
-        if (Display::relaunchWithScale(wanted)) {
-            QCoreApplication::quit();
-            return;
+// Done: keep everything. A new text size needs a restart, so ask about that now.
+void SettingsView::finish()
+{
+    const auto saved = TextSize::fromSetting(m_repo.setting("text_size", "normal"));
+    if (m_pendingSize != saved)
+        m_repo.setSetting("text_size", TextSize::toSetting(m_pendingSize));
+    const double wanted = TextSize::factor(m_pendingSize);
+    if (std::abs(wanted - Display::currentScaleFactor()) >= 0.001) {
+        if (Confirm::destructive(this, "Restart to change the text size?",
+                                 "Weather Tracker needs to restart to change the text size. "
+                                 "Your weather records are safe.",
+                                 "Not now", "Restart now")) {
+            if (Display::relaunchWithScale(wanted)) {
+                QCoreApplication::quit();
+                return;
+            }
+            QMessageBox::warning(this, "Weather Tracker",
+                                 "Sorry, Weather Tracker could not restart itself.\n"
+                                 "Please close it and open it again.");
         }
-        QMessageBox::warning(this, "Weather Tracker",
-                             "Sorry, the program could not restart itself.\n"
-                             "Please close it and open it again.");
     }
-    m_sizeNote->setText("The new text size will be used the next time you open the program.");
+    emit done();
+}
+
+// Cancel: every setting goes back to how it was when Settings opened.
+void SettingsView::cancel()
+{
+    m_repo.setSetting("units", m_before.units);
+    m_repo.setSetting("motion", m_before.motion);
+    m_repo.setSetting("update_check", m_before.updates);
+    auto *theme = ThemeManager::instance();
+    if (theme->style() != m_before.style)
+        theme->setStyle(m_before.style);
+    if (theme->brightness() != m_before.brightness)
+        theme->setBrightness(m_before.brightness);
+    emit done();
+}
+
+// The settings a new Weather Tracker starts with. Cancel still undoes this.
+void SettingsView::useDefaults()
+{
+    m_unitRow->setChosen(static_cast<int>(Units::System::Metric));
+    m_repo.setSetting("units", Units::toSetting(Units::System::Metric));
+    m_sizeRow->setChosen(static_cast<int>(TextSize::Size::Normal));
+    chooseSize(TextSize::Size::Normal);
+    m_styleRow->setChosen(static_cast<int>(Theme::Style::Clay));
+    m_brightRow->setChosen(static_cast<int>(Theme::Brightness::System));
+    auto *theme = ThemeManager::instance();
+    if (theme->style() != Theme::Style::Clay)
+        theme->setStyle(Theme::Style::Clay);
+    if (theme->brightness() != Theme::Brightness::System)
+        theme->setBrightness(Theme::Brightness::System);
+    m_motion->setChecked(true);                 // its toggled() saves it
+    m_allowUpdates->setChecked(true);
 }

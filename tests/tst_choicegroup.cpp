@@ -6,6 +6,7 @@
 #include <QtTest>
 
 #include "ChoiceGroup.h"
+#include "ChoiceRow.h"
 #include "EnterKey.h"
 
 namespace {
@@ -223,6 +224,43 @@ private slots:
         press(page.cloud->cell("Clear"), Qt::Key_Right);
         QCOMPARE(QApplication::focusWidget(), page.cloud->cell("Mostly clear"));
         qApp->removeEventFilter(&enterKey);
+    }
+
+    void choiceRowKeys()
+    {
+        // Settings' rows (KB2, D66): one Tab stop at the choice; arrows move, Space chooses.
+        QWidget w;
+        auto *layout = new QVBoxLayout(&w);
+        auto *before = new QLineEdit;
+        auto *row = new ChoiceRow("Text size");
+        row->addChoice(0, "Normal", "");
+        row->addChoice(1, "Large", "");
+        row->addChoice(2, "Extra large", "");
+        auto *after = new QLineEdit;
+        layout->addWidget(before);
+        layout->addWidget(row);
+        layout->addWidget(after);
+        w.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&w));
+        row->setChosen(1);
+        QSignalSpy chosen(row, &ChoiceRow::chosenChanged);
+        before->setFocus();
+        press(before, Qt::Key_Tab);
+        QCOMPARE(QApplication::focusWidget(), row->buttons()[1]);
+        press(QApplication::focusWidget(), Qt::Key_Right);
+        QCOMPARE(QApplication::focusWidget(), row->buttons()[2]);
+        QCOMPARE(row->chosen(), 1);
+        press(QApplication::focusWidget(), Qt::Key_Tab);
+        QCOMPARE(QApplication::focusWidget(), after);
+        press(after, Qt::Key_Backtab);
+        QCOMPARE(QApplication::focusWidget(), row->buttons()[1]);
+        press(QApplication::focusWidget(), Qt::Key_Home);
+        press(QApplication::focusWidget(), Qt::Key_Space);
+        QCOMPARE(row->chosen(), 0);
+        QCOMPARE(chosen.count(), 1);
+        // At least 88 wide and 44 high.
+        QVERIFY(row->buttons()[0]->width() >= 88);
+        QVERIFY(row->buttons()[0]->height() >= 44);
     }
 
     void clearAndRepeatClick()
