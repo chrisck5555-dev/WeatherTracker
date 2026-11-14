@@ -20,6 +20,8 @@ public:
     ClayStyle();
     ~ClayStyle() override;
 
+    QRect subElementRect(SubElement element, const QStyleOption *opt,
+                         const QWidget *widget) const override;
     void polish(QWidget *widget) override;
     void unpolish(QWidget *widget) override;
     using QProxyStyle::polish;

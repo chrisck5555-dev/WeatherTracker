@@ -1,13 +1,25 @@
 #include "WeatherInput.h"
 
+#include <QHash>
 #include <QLocale>
 #include <cmath>
+
+#include "Format.h"
 
 namespace WeatherInput {
 
 Parse parseNumber(const QString &text, double &out)
 {
-    QString s = text.trimmed();
+    QString s = text;
+    // K5: spaces of any kind and a degree sign are ignored; a comma is a decimal point and
+    // a typographic minus (U+2212) is a minus.
+    s.remove(QChar(0x00B0));
+    s.replace(QChar(0x2212), QChar('-'));
+    QString kept;
+    for (QChar c : s)
+        if (!c.isSpace())
+            kept += c;
+    s = kept;
     if (s.isEmpty())
         return Parse::Blank;
     s.replace(',', '.');
@@ -28,17 +40,15 @@ QString validateNumber(const QString &text, std::optional<double> min,
     case Parse::Blank:
         return QString();                      // blank = not recorded, always allowed
     case Parse::Invalid:
-        return QStringLiteral("Please enter a number, like 12.5");
+        return QStringLiteral("Type a number, like 12.5");
     case Parse::Ok:
         break;
     }
-    if (min && v < *min) {
-        return max ? QString("Must be between %1 and %2").arg(*min).arg(*max)
-                   : QString("Must be %1 or more").arg(*min);
-    }
-    if (max && v > *max) {
-        return min ? QString("Must be between %1 and %2").arg(*min).arg(*max)
-                   : QString("Must be %1 or less").arg(*max);
+    // FM5: plain words that say how to fix it.
+    if ((min && v < *min) || (max && v > *max)) {
+        if (min && max)
+            return QString("Type a number from %1 to %2").arg(*min).arg(*max);
+        return min ? QString("Type %1 or more").arg(*min) : QString("Type %1 or less").arg(*max);
     }
     value = v;
     return QString();
@@ -48,9 +58,9 @@ PrecipCheck checkPrecipPair(const QString &type, bool amountBlank)
 {
     PrecipCheck c;
     if (type.isEmpty() && !amountBlank)
-        c.typeError = QStringLiteral("Choose a precipitation type");
+        c.typeError = QStringLiteral("Choose a type for this amount");
     else if (!type.isEmpty() && type != "None" && amountBlank)
-        c.amountError = QStringLiteral("Enter an amount");
+        c.amountError = QStringLiteral("Type an amount, or choose None");
     return c;                                  // type "None": amount isn't used at all
 }
 
@@ -71,6 +81,50 @@ std::optional<QDate> parseDate(const QString &text)
             return d;
     }
     return std::nullopt;
+}
+
+AmountUnit precipUnit(const QString &type, Units::System s)
+{
+    if (s == Units::System::Imperial)
+        return {QStringLiteral("in"), QStringLiteral("inches")};
+    if (type == QLatin1String("Snow"))
+        return {QStringLiteral("cm"), QStringLiteral("centimetres")};
+    return {QStringLiteral("mm"), QStringLiteral("millimetres")};
+}
+
+double amountToMm(double shown, const QString &type, Units::System s)
+{
+    return type == QLatin1String("Snow") ? Units::displayToSnowMm(shown, s) : Units::displayToMm(shown, s);
+}
+
+double mmToAmount(double mm, const QString &type, Units::System s)
+{
+    return type == QLatin1String("Snow") ? Units::snowMmToDisplay(mm, s) : Units::mmToDisplay(mm, s);
+}
+
+bool sameAmountUnit(const QString &a, const QString &b)
+{
+    return (a == QLatin1String("Snow")) == (b == QLatin1String("Snow"));
+}
+
+QString windFromGoingTo(const QString &goingTo) { return Format::windGoingTo(goingTo); }
+QString windGoingToFrom(const QString &from) { return Format::windGoingTo(from); }
+
+QString spokenUnit(const QString &unit)
+{
+    static const QHash<QString, QString> words = {
+        {QStringLiteral("\u00B0C"), QStringLiteral("degrees Celsius")},
+        {QStringLiteral("\u00B0F"), QStringLiteral("degrees Fahrenheit")},
+        {QStringLiteral("km/h"), QStringLiteral("kilometres per hour")},
+        {QStringLiteral("mph"), QStringLiteral("miles per hour")},
+        {QStringLiteral("hPa"), QStringLiteral("hectopascals")},
+        {QStringLiteral("inHg"), QStringLiteral("inches of mercury")},
+        {QStringLiteral("%"), QStringLiteral("percent")},
+        {QStringLiteral("mm"), QStringLiteral("millimetres")},
+        {QStringLiteral("cm"), QStringLiteral("centimetres")},
+        {QStringLiteral("in"), QStringLiteral("inches")},
+    };
+    return words.value(unit, unit);
 }
 
 const QStringList &windDirections()

@@ -20,9 +20,12 @@ GuideDialog::GuideDialog(QWidget *parent)
     text->setOpenExternalLinks(false);
     text->setHtml(
         "<h2>Writing down the weather</h2>"
-        "<p>Press <b>Add today's weather</b> (next to the tabs). Fill in what you know and "
-        "leave the rest. Empty fields show as “Not recorded”. Press <b>Save</b> when "
+        "<p>Press <b>Add today's weather</b> at the top left. Fill in what you know and "
+        "leave the rest empty. Nothing is required. Press <b>Save</b> (or Ctrl+S) when "
         "you are done, or <b>Cancel</b> to leave without saving.</p>"
+        "<p>For the wind and the gusts, press the side the wind is blowing <b>toward</b>. "
+        "A forecast's “northwest wind” comes from the northwest, so it is going to the SE. "
+        "To take back a choice, press <b>Clear</b> beside it.</p>"
         "<p>For another day, open it on the Calendar tab and press <b>Edit this day</b> (or "
         "<b>Add this day's weather</b> if it has nothing yet). "
         "Besides the weather, each day has a <b>note</b> for anything you want to remember and "
@@ -65,6 +68,7 @@ GuideDialog::GuideDialog(QWidget *parent)
         "<tr><td><b>Ctrl+N</b></td><td>Add or edit today's weather</td></tr>"
         "<tr><td><b>Ctrl+F</b></td><td>Search</td></tr>"
         "<tr><td><b>Ctrl+G</b></td><td>Go to date</td></tr>"
+        "<tr><td><b>Ctrl+S</b></td><td>Save, while you are writing down a day's weather</td></tr>"
         "<tr><td><b>Ctrl+Z</b></td><td>Undo the last delete</td></tr>"
         "<tr><td><b>F1</b></td><td>This guide</td></tr>"
         "<tr><td><b>F6</b></td><td>Move between the buttons at the top, the tabs and the page</td></tr>"
@@ -76,6 +80,9 @@ GuideDialog::GuideDialog(QWidget *parent)
         "from month to month), <b>Page Up</b> and <b>Page Down</b> move a whole month or year, "
         "and <b>Enter</b> opens what is outlined. Windows Narrator reads out each day as you "
         "move.</p>"
+        "<p><b>Choosing in the weather editor without a mouse:</b> the arrow keys move "
+        "between the buttons of a group, such as the wind's compass. Press <b>Space</b> or "
+        "<b>Enter</b> to choose the one with the blue tint, and <b>Tab</b> to go on.</p>"
 
         "<h2>Settings</h2>"
         "<p>Choose metric or imperial units, the text size, and the look of the program "

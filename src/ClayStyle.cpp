@@ -308,7 +308,15 @@ void ClayStyle::drawControl(ControlElement element, const QStyleOption *opt, QPa
             QStyleOptionButton o(*b);
             o.state &= ~State_HasFocus;                          // no extra outline
             o.palette.setColor(QPalette::WindowText, (b->state & State_Enabled) ? c.text : c.disabledText);
-            QProxyStyle::drawControl(element, &o, p, w);
+            // Drawn here rather than by the base style, which would place the box with its
+            // own subElementRect and ignore the 8 px inset.
+            const bool radio = element == CE_RadioButton;
+            QStyleOptionButton box(o);
+            box.rect = subElementRect(radio ? SE_RadioButtonIndicator : SE_CheckBoxIndicator, &o, w);
+            drawPrimitive(radio ? PE_IndicatorRadioButton : PE_IndicatorCheckBox, &box, p, w);
+            QStyleOptionButton label(o);
+            label.rect = subElementRect(radio ? SE_RadioButtonContents : SE_CheckBoxContents, &o, w);
+            drawControl(radio ? CE_RadioButtonLabel : CE_CheckBoxLabel, &label, p, w);
             return;
         }
     }
@@ -442,8 +450,10 @@ QSize ClayStyle::sizeFromContents(ContentsType type, const QStyleOption *opt, co
                      std::max(Design::kTarget, height + 2 * Design::kGapButtons));
     }
     if (type == CT_CheckBox || type == CT_RadioButton) {
+        // 8 px inside the hover and focus tint on each side (Chris, 2026-11-13: the box
+        // sat right at the tint's edge; the tint stays lined up with the column).
         QSize s = QProxyStyle::sizeFromContents(type, opt, size, w);
-        return QSize(s.width() + Design::kGapButtons, std::max(Design::kTarget, s.height()));
+        return QSize(s.width() + 2 * Design::kGapButtons, std::max(Design::kTarget, s.height()));
     }
     if (type == CT_TabBarTab) {
         QSize s = size;
@@ -458,6 +468,35 @@ QSize ClayStyle::sizeFromContents(ContentsType type, const QStyleOption *opt, co
                      Design::kTarget + 8);
     }
     return QProxyStyle::sizeFromContents(type, opt, size, w);
+}
+
+QRect ClayStyle::subElementRect(SubElement element, const QStyleOption *opt, const QWidget *w) const
+{
+    switch (element) {
+    case SE_CheckBoxIndicator:
+    case SE_CheckBoxContents:
+    case SE_CheckBoxFocusRect:
+    case SE_CheckBoxClickRect:
+    case SE_RadioButtonIndicator:
+    case SE_RadioButtonContents:
+    case SE_RadioButtonFocusRect:
+    case SE_RadioButtonClickRect: {
+        // The box and its label start 8 px in from the control's edge, where the tint starts.
+        QStyleOption inset(*opt);
+        inset.rect.adjust(Design::kGapButtons, 0, 0, 0);
+        if (const auto *b = qstyleoption_cast<const QStyleOptionButton *>(opt)) {
+            QStyleOptionButton ib(*b);
+            ib.rect = inset.rect;
+            QRect r = QProxyStyle::subElementRect(element, &ib, w);
+            if (element == SE_CheckBoxClickRect || element == SE_RadioButtonClickRect)
+                r = opt->rect;                    // the whole tinted area stays clickable
+            return r;
+        }
+        return QProxyStyle::subElementRect(element, &inset, w);
+    }
+    default:
+        return QProxyStyle::subElementRect(element, opt, w);
+    }
 }
 
 int ClayStyle::pixelMetric(PixelMetric metric, const QStyleOption *opt, const QWidget *w) const

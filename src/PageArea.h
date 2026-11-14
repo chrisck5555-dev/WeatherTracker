@@ -23,7 +23,7 @@ public:
     QWidget *barsSlot() const { return m_barsSlot; }   // the bars, while they scroll with the page
     // L8, L9: where the page starts at rest (below the bars), and the room on the right
     // (16, or the scroll bar's width while it shows).
-    void setPageMargins(int top, int right);
+    void setPageMargins(int top, int right, int bottom = 0);   // bottom: the editor's footer
     void setFocusClearance(int top) { m_clearTop = top; }   // SC5: what the bars cover
     void setFocusClearanceBottom(int bottom) { m_clearBottom = bottom; }   // and the undo bar
     QScrollBar *bar() const { return m_bar; }

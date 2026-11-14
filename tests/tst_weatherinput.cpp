@@ -21,6 +21,59 @@ private slots:
         QCOMPARE(WeatherInput::parseNumber("1.2.3", v), WeatherInput::Parse::Invalid);
         QCOMPARE(WeatherInput::parseNumber("inf", v), WeatherInput::Parse::Invalid);
         QCOMPARE(WeatherInput::parseNumber("nan", v), WeatherInput::Parse::Invalid);
+        // K5: spaces, a degree sign and a typographic minus.
+        QCOMPARE(WeatherInput::parseNumber("12,5 \u00B0", v), WeatherInput::Parse::Ok);
+        QCOMPARE(v, 12.5);
+        QCOMPARE(WeatherInput::parseNumber(" \u2212 4 \u00B0C", v), WeatherInput::Parse::Invalid);   // a unit is not a number
+        QCOMPARE(WeatherInput::parseNumber("\u22124\u00B0", v), WeatherInput::Parse::Ok);
+        QCOMPARE(v, -4.0);
+        QCOMPARE(WeatherInput::parseNumber("1 013", v), WeatherInput::Parse::Ok);
+        QCOMPARE(v, 1013.0);
+        QCOMPARE(WeatherInput::parseNumber("\u00B0", v), WeatherInput::Parse::Blank);
+    }
+
+    // D54: the amount's unit follows the type.
+    void precipUnit()
+    {
+        using WeatherInput::precipUnit;
+        const auto metric = Units::System::Metric, imperial = Units::System::Imperial;
+        QCOMPARE(precipUnit("Snow", metric).unit, QString("cm"));
+        QCOMPARE(precipUnit("Rain", metric).unit, QString("mm"));
+        QCOMPARE(precipUnit("Hail", metric).unit, QString("mm"));
+        QCOMPARE(precipUnit("", metric).unit, QString("mm"));
+        QCOMPARE(precipUnit("Snow", imperial).unit, QString("in"));
+        QCOMPARE(precipUnit("Rain", imperial).unit, QString("in"));
+        QCOMPARE(precipUnit("Snow", metric).spoken, QString("centimetres"));
+        QCOMPARE(WeatherInput::amountToMm(2.5, "Snow", metric), 25.0);
+        QCOMPARE(WeatherInput::amountToMm(2.5, "Rain", metric), 2.5);
+        QCOMPARE(WeatherInput::amountToMm(1.0, "Snow", imperial), 25.4);
+        QCOMPARE(WeatherInput::mmToAmount(25.0, "Snow", metric), 2.5);
+        QCOMPARE(WeatherInput::mmToAmount(25.4, "Rain", imperial), 1.0);
+        QVERIFY(WeatherInput::sameAmountUnit("Rain", "Hail"));
+        QVERIFY(!WeatherInput::sameAmountUnit("Rain", "Snow"));
+        QVERIFY(WeatherInput::sameAmountUnit("Snow", "Snow"));
+    }
+
+    // CF4, D53: the editor says "going to"; what is saved stays "from".
+    void windGoingTo()
+    {
+        const QStringList sides{"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+        const QStringList opposite{"S", "SW", "W", "NW", "N", "NE", "E", "SE"};
+        for (int i = 0; i < sides.size(); ++i) {
+            QCOMPARE(WeatherInput::windGoingToFrom(sides[i]), opposite[i]);   // loading
+            QCOMPARE(WeatherInput::windFromGoingTo(opposite[i]), sides[i]);   // saving
+            QCOMPARE(WeatherInput::windFromGoingTo(WeatherInput::windGoingToFrom(sides[i])), sides[i]);
+        }
+        QCOMPARE(WeatherInput::windGoingToFrom(""), QString());               // not recorded stays so
+        QCOMPARE(WeatherInput::windFromGoingTo(""), QString());
+    }
+
+    void spokenUnits()
+    {
+        QCOMPARE(WeatherInput::spokenUnit("\u00B0C"), QString("degrees Celsius"));
+        QCOMPARE(WeatherInput::spokenUnit("km/h"), QString("kilometres per hour"));
+        QCOMPARE(WeatherInput::spokenUnit("hPa"), QString("hectopascals"));
+        QCOMPARE(WeatherInput::spokenUnit("%"), QString("percent"));
     }
 
     void ranges()

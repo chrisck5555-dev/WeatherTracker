@@ -242,6 +242,11 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     m_calendarStack->addWidget(yearView);     // 3
     m_calendarStack->addWidget(m_editor);     // 4
     sizeToCurrentPage(m_calendarStack);
+    // Save and Cancel stay pinned at the bottom of the window while the form scrolls
+    // (plan 2.4, SC4); the frame places them (layoutFrame), after the form in Tab order.
+    m_editorFooter = m_editor->footer();
+    m_editorFooter->setParent(m_frame);
+    m_editorFooter->hide();
     m_tabContent[0] = m_calendarStack;
     m_tabStack->addWidget(m_calendarStack);
 
@@ -277,6 +282,13 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->addWidget(m_pages);
     setCentralWidget(root);
+    QWidget::setTabOrder(m_editor->lastField(), m_editor->saveButton());   // now in one window
+    QWidget::setTabOrder(m_editor->saveButton(), m_editor->cancelButton());
+    // The footer is solid: the window's own background, as if the page weren't there.
+    m_editor->footer()->paintBackground = [root](QPainter &p, QWidget *w) {
+        p.translate(-QPointF(w->mapTo(root, QPoint(0, 0))));
+        Artwork::paintPage(p, QRectF(root->rect()), w->palette().color(QPalette::Window));
+    };
     m_panelHost = new PanelHost(root);            // Search and Go to date appear on top of the window
     m_panelHost->setUnderlying(m_pages);
     m_transition = new ViewTransition(root);      // short fades and slides between views
@@ -289,7 +301,8 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     // keyboard focus is scrolled clear of it when the page can scroll (SC5).
     connect(m_undoBar, &UndoBar::spaceChanged, this, [this](int space) {
         m_backdrop->setPageUnderGlass(space > 0);
-        m_pageArea->setFocusClearanceBottom(space);
+        m_undoSpace = space;
+        m_pageArea->setFocusClearanceBottom(m_editing ? EditorFooter::footerHeight() : space);
         m_undoBar->update();
     });
     connect(m_pageArea->verticalScrollBar(), &QScrollBar::valueChanged, m_undoBar,
@@ -475,6 +488,14 @@ MainWindow::MainWindow(Repository &repo, QWidget *parent)
     auto *helpKey = new QShortcut(QKeySequence::HelpContents, this);       // F1, from anywhere
     connect(helpKey, &QShortcut::activated, this, &MainWindow::openGuide);
 
+    // KB6: Ctrl+S saves while editing, wherever the focus is in the form. Esc does nothing
+    // there (KB4): it only closes floating things.
+    auto *saveKey = new QShortcut(QKeySequence::Save, this);
+    connect(saveKey, &QShortcut::activated, this, [this] {
+        if (m_editing && m_pages->currentIndex() == 0 && !m_panelHost->isOpen())
+            m_editor->requestSave();
+    });
+
     // --- Wiring: deleting a day, and Undo ---
     connect(dayView, &DayView::deleteRequested, this, &MainWindow::deleteDay);
     auto *undoKey = new QShortcut(QKeySequence::Undo, this);               // Ctrl+Z
@@ -598,21 +619,39 @@ void MainWindow::layoutFrame()
             m_pageArea->barsSlot()->show();
         }
         m_bars->setFloating(floating);
-        m_bars->show();
+        m_bars->setVisible(!m_editing);
     }
     const int sbw = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, m_pageArea->bar());
     const bool barShown = !m_pageArea->bar()->isHidden();
     const int right = barShown ? std::max(Design::kWindowMargin, sbw) : Design::kWindowMargin;
     m_pageArea->setGeometry(0, 0, w, h);
-    if (floating) {
+    // While editing, Save and Cancel are pinned at the bottom and the page ends above them.
+    const int footerH = m_editing ? EditorFooter::footerHeight() : 0;
+    m_editorFooter->setVisible(m_editing);
+    if (m_editing) {
+        m_editorFooter->setGeometry(0, h - footerH, w, footerH);
+        static_cast<EditorFooter *>(m_editorFooter)->setRightMargin(right);
+        m_editorFooter->raise();
+    }
+    m_pageArea->setFocusClearanceBottom(m_editing ? footerH : m_undoSpace);   // SC5
+    // D64: while editing, the editor has the whole window, as Settings does (D40). The bars
+    // are locked then anyway, and this gives the form their 148 px.
+    m_bars->setVisible(!m_editing);
+    if (!floating)
+        m_pageArea->barsSlot()->setVisible(!m_editing);
+    if (m_editing) {
+        m_pageArea->setPageMargins(Design::kWindowMargin, right, footerH);
+        m_pageArea->setFocusClearance(0);
+        m_pageArea->bar()->setGeometry(w - sbw, 0, sbw, h);
+    } else if (floating) {
         m_bars->setGeometry(0, 0, w, barsH);
-        m_pageArea->setPageMargins(barsH, right);          // L9: 16 below the tab row
+        m_pageArea->setPageMargins(barsH, right, footerH);  // L9: 16 below the tab row
         m_pageArea->setFocusClearance(m_bars->barsBottom());
         const int top = barsH - Design::kBarToPage;        // the scroll bar starts below the tab row
         m_pageArea->bar()->setGeometry(w - sbw, top, sbw, std::max(0, h - top));
         m_bars->raise();
     } else {
-        m_pageArea->setPageMargins(0, right);
+        m_pageArea->setPageMargins(0, right, footerH);
         m_pageArea->setFocusClearance(0);
         m_pageArea->bar()->setGeometry(w - sbw, 0, sbw, h);
     }
@@ -983,6 +1022,7 @@ void MainWindow::refreshNav()
                             : p == Period::Day ? QString("You are already on today (Ctrl+T)")
                                                : QString("You are already on this %1 (Ctrl+T)").arg(unit));   // ST5
     m_header->setNavigationShown(p != Period::All);       // "All time" has nothing to step through
+    m_header->setVisible(!m_editing);                     // the editor has its own heading (plan 2.4)
 
     // While editing, the bars and the header are locked so nothing can be lost.
     todayButton->setEnabled(!m_editing && !onToday);

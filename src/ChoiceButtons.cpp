@@ -41,6 +41,7 @@ QPushButton *ChoiceButtons::addChoice(int id, const QString &text, const QString
     m_group->addButton(b, id);
     m_flow->addWidget(b);
     b->installEventFilter(this);
+    b->setProperty("wtOwnArrows", true);                // the arrows move inside (KB2)
     if (m_group->buttons().size() == 1)
         b->setChecked(true);
     updateTabStop();

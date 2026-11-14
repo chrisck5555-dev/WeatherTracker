@@ -1,5 +1,7 @@
 #include <QDir>
 #include <QMessageBox>
+
+#include "EnterKey.h"
 #include <cmath>
 #include <exception>
 
@@ -45,6 +47,11 @@ static int runApp(int argc, char *argv[])
     }
 
     app.setFont(appFont(app.font()));          // T1, T6: Body, 18 px
+    // Windows gives message box text its own, smaller system font; use Body there too.
+    app.setFont(appFont(app.font()), "QMessageBoxLabel");
+
+    EnterKey enterKey;                         // KB3: Enter presses the focused button
+    app.installEventFilter(&enterKey);
 
     Motion::setUserEnabled(repo.setting("motion", "on") != "off");   // M19
 
@@ -77,4 +84,4 @@ int main(int argc, char *argv[])
             "Weather Tracker could not start.\n\nDetails were saved to:\n" + AppLog::path());
     }
     return 1;
-}
+}

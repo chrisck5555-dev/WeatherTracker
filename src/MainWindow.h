@@ -101,6 +101,8 @@ private:
     QStackedWidget *m_pages = nullptr;
     SettingsView *m_settings = nullptr;
     EditorView *m_editor = nullptr;
+    QWidget *m_editorFooter = nullptr;  // Save and Cancel, pinned at the window's bottom
+    int m_undoSpace = 0;                // what the undo bar covers at the bottom (K1)
     QTimer *m_dayTimer = nullptr;
     PanelHost *m_panelHost = nullptr;
     TourOverlay *m_tour = nullptr;

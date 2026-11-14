@@ -62,22 +62,35 @@ QString precipName(const QString &t)
     if (t == "Sleet")         return "sleet";
     if (t == "Freezing rain") return "freezing-rain";
     if (t == "Hail")          return "hail";
-    return QString();         // "None" and "Mixed" have no matching picture
+    if (t == "Mixed")         return "mixed";
+    return QString();         // "None": the calendar shows the day's cloud picture instead
+}
+
+QString choicePrecipName(const QString &t)
+{
+    return t == "None" ? QStringLiteral("no-precipitation") : precipName(t);
 }
 
 QString cloudName(const QString &c)
 {
-    if (c == "Clear" || c == "Mostly clear")       return "sunny";
-    if (c == "Partly cloudy")                      return "partly-cloudy";
-    if (c == "Mostly cloudy" || c == "Overcast")   return "cloudy";
+    if (c == "Clear")           return "sunny";
+    if (c == "Mostly clear")    return "mostly-clear";
+    if (c == "Partly cloudy")   return "partly-cloudy";
+    if (c == "Mostly cloudy")   return "mostly-cloudy";
+    if (c == "Overcast")        return "cloudy";
     return QString();
 }
 
-QString windName(const QString &dir)
+QString windName(const QString &fromDir)
 {
-    if (!WeatherInput::windDirections().contains(dir))
+    return windToName(WeatherInput::windGoingToFrom(fromDir));
+}
+
+QString windToName(const QString &toSide)
+{
+    if (!WeatherInput::windDirections().contains(toSide))
         return QString();
-    return "wind-from-" + dir.toLower();
+    return "wind-to-" + toSide.toLower();      // its arrow points that way (CF4)
 }
 
 QString conditionName(const WeatherDay &day)

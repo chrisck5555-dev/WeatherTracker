@@ -6,8 +6,9 @@ class QWidget;
 
 namespace Confirm {
 
-// Two-button question. The safe choice is on the LEFT and is the default
-// (pressing Enter picks it). Returns true if the user chose the destructive one.
+// Two-button question (DLG3): the action on the left, the safe answer on the right.
+// Enter, Esc and the window's X all give the safe answer. Returns true if the user
+// chose the destructive one.
 bool destructive(QWidget *parent, const QString &title, const QString &message,
                  const QString &safeLabel, const QString &destructiveLabel);
 

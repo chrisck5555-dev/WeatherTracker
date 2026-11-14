@@ -12,10 +12,12 @@ struct WeatherDay;
 // Every picture sits beside text; none of them is the only way to read the weather.
 namespace WeatherIcons {
 
-// Icon names: "sunny", "rain", "wind-from-ne", ... An empty name means "no picture".
-QString precipName(const QString &precipType);   // "Rain" -> "rain"; "None"/"Mixed" -> ""
+// Icon names: "sunny", "rain", "wind-to-sw", ... An empty name means "no picture".
+QString precipName(const QString &precipType);   // "Rain" -> "rain"; "None" -> "" (calendar)
+QString choicePrecipName(const QString &type);   // the editor's cells: "None" -> "no-precipitation"
 QString cloudName(const QString &cloud);         // "Overcast" -> "cloudy"
-QString windName(const QString &windDir);        // "NE" -> "wind-from-ne"
+QString windName(const QString &fromDir);        // saved "NE" (from) -> "wind-to-sw"
+QString windToName(const QString &toSide);       // "SW" -> "wind-to-sw": the arrow points SW
 QString conditionName(const WeatherDay &day);    // precipitation first, else cloud cover
 
 QString lookFolder();                                       // "clay-light", "contrast-dark", ...

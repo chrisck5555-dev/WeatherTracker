@@ -129,5 +129,9 @@
     <file alias="ic_fluent_trophy_16_regular.svg">icons/fluent/ic_fluent_trophy_16_regular.svg</file>
     <file alias="ic_fluent_trophy_24_filled.svg">icons/fluent/ic_fluent_trophy_24_filled.svg</file>
     <file alias="ic_fluent_trophy_24_regular.svg">icons/fluent/ic_fluent_trophy_24_regular.svg</file>
+    <file alias="ic_fluent_warning_16_filled.svg">icons/fluent/ic_fluent_warning_16_filled.svg</file>
+    <file alias="ic_fluent_warning_16_regular.svg">icons/fluent/ic_fluent_warning_16_regular.svg</file>
+    <file alias="ic_fluent_warning_24_filled.svg">icons/fluent/ic_fluent_warning_24_filled.svg</file>
+    <file alias="ic_fluent_warning_24_regular.svg">icons/fluent/ic_fluent_warning_24_regular.svg</file>
   </qresource>
 </RCC>

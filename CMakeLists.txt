@@ -85,6 +85,10 @@ add_executable(WeatherTracker WIN32
     src/NumberField.h
     src/EditorView.cpp
     src/EditorView.h
+    src/ChoiceGroup.cpp
+    src/ChoiceGroup.h
+    src/FieldError.cpp
+    src/FieldError.h
     src/Confirm.cpp
     src/Confirm.h
     src/Display.cpp
@@ -137,6 +141,7 @@ add_executable(WeatherTracker WIN32
     src/HoverFade.cpp
     src/HoverFade.h
     src/KeyboardNav.h
+    src/EnterKey.h
     src/UndoBar.cpp
     src/UndoBar.h
     src/ChoiceButtons.cpp
@@ -247,6 +252,11 @@ add_executable(tst_flowlayout tests/tst_flowlayout.cpp src/FlowLayout.cpp src/Fl
 target_link_libraries(tst_flowlayout PRIVATE WeatherCore Qt6::Widgets Qt6::Test)
 add_test(NAME flowlayout COMMAND tst_flowlayout)
 set_tests_properties(flowlayout PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(tst_choicegroup tests/tst_choicegroup.cpp src/ChoiceGroup.cpp src/ChoiceGroup.h src/EnterKey.h)
+target_link_libraries(tst_choicegroup PRIVATE WeatherCore Qt6::Widgets Qt6::Test)
+add_test(NAME choicegroup COMMAND tst_choicegroup)
+set_tests_properties(choicegroup PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 
 # Tools

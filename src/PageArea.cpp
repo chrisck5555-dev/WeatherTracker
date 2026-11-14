@@ -66,9 +66,9 @@ void PageArea::setPage(QWidget *page)
     m_pageBox->addWidget(page, 1);
 }
 
-void PageArea::setPageMargins(int top, int right)
+void PageArea::setPageMargins(int top, int right, int bottom)
 {
-    m_pageBox->setContentsMargins(Design::kWindowMargin, top, right, 0);
+    m_pageBox->setContentsMargins(Design::kWindowMargin, top, right, bottom);
 }
 
 bool PageArea::focusNextPrevChild(bool next)
