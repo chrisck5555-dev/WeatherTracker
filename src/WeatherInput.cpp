@@ -57,10 +57,11 @@ QString validateNumber(const QString &text, std::optional<double> min,
 PrecipCheck checkPrecipPair(const QString &type, bool amountBlank)
 {
     PrecipCheck c;
+    // FM4: an empty field is never an error, so a type without an amount is fine: she may
+    // know it rained without knowing how much (Chris, 2026-11-13). An amount needs a type,
+    // because the type sets its unit (D54).
     if (type.isEmpty() && !amountBlank)
         c.typeError = QStringLiteral("Choose a type for this amount");
-    else if (!type.isEmpty() && type != "None" && amountBlank)
-        c.amountError = QStringLiteral("Type an amount, or choose None");
     return c;                                  // type "None": amount isn't used at all
 }
 

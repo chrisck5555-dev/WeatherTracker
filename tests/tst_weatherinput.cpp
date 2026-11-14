@@ -97,7 +97,7 @@ private slots:
         QVERIFY(checkPrecipPair("", true).typeError.isEmpty());
         QVERIFY(checkPrecipPair("", true).amountError.isEmpty());          // both blank: fine
         QVERIFY(!checkPrecipPair("", false).typeError.isEmpty());          // amount, no type
-        QVERIFY(!checkPrecipPair("Rain", true).amountError.isEmpty());     // type, no amount
+        QVERIFY(checkPrecipPair("Rain", true).amountError.isEmpty());      // type, no amount: fine (FM4)
         QVERIFY(checkPrecipPair("Rain", false).amountError.isEmpty());
         QVERIFY(checkPrecipPair("None", true).amountError.isEmpty());      // None needs no amount
     }
